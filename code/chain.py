@@ -1,6 +1,5 @@
 """Script to create Mixing Chain."""
 import concurrent.futures
-import copy
 import numpy as np
 import pandas as pd
 from arrays import DatabaseArrays
@@ -28,6 +27,7 @@ class ChainState:
 
         Args:
             base_product (str): Base product used as source state.
+            chain (ChainSimulation): ChainSimulation class.
 
         Raises:
             ValueError: If chosen based product.
