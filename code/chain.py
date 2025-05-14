@@ -37,32 +37,28 @@ class ChainState:
             chain.products_df["product_name"] == base_product]
         if len(base_product) == 0:
             raise ValueError(f"Base product {base_product} is invalid!")
-        self.product_cost = base_product["cost"][0]
-        self.product_value = base_product["value"][0]
+        self.product_value = base_product["value"].iloc[0]
 
         # Create an integer ingredients array.
         # Each element of the array represents how many times that
         # ingredient was used.
         self.ingredients_count = np.zeros((chain.n_ingredients, 1))
 
-        # Store recipe with order of ingredients
-        self.recipe = []
-
         # Create a sparse binary effects array.
         # Earch element of the array indicates if effect is present.
         self.active_effects = np.zeros((chain.n_effects, 1))
         self.active_effects[
-            chain.effects_df["effect_name"] == base_product["effect_name"][0]
+            chain.effects_df["effect_name"] ==
+            base_product["effect_name"].iloc[0]
         ] = 1
 
-    def _cost(self) -> float:
+    def cost(self) -> float:
         """Calculates the cost of product state."""
-        ingredients_cost = float((
+        return float((
             chain.ingredients_cost @ self.ingredients_count
         ).item())
-        return ingredients_cost + float(self.product_cost)
 
-    def _value(self) -> float:
+    def value(self) -> float:
         """Calculates sell value of product state."""
         mult = float((chain.effects_multiplier @ self.active_effects).item())
         return (1 + mult) * float(self.product_value)
@@ -71,7 +67,6 @@ class ChainState:
         """Mix product with ingredient."""
         #  Increment ingredient count
         self.ingredients_count[ingredient_id] += 1
-        self.recipe.append(int(ingredient_id))
 
         # Apply effects transition rules
         self.active_effects = (
@@ -109,11 +104,10 @@ class ChainState:
             * self.product_value
         )
         neighbours_costs = (
-                self.product_cost + chain.ingredients_cost @
-                neighbours_ingredients
+                chain.ingredients_cost @ neighbours_ingredients
         )
         neighbours_profit = (neighbours_values - neighbours_costs).ravel()
-        current_profit = self._value() - self._cost()
+        current_profit = self.value() - self.cost()
         acceptances = np.clip(neighbours_profit / current_profit, 0.0, 1.0)
 
         # Calculate probabilities
@@ -183,13 +177,8 @@ class ChainSimulation:
             chain=self,
             base_product=base_product,
         )
-
-        recipes = []
-        effects = []
-        costs = []
-        values = []
-
-        for _ in range(num_steps):
+        recipe = np.zeros(num_steps)
+        for i in range(num_steps):
             # Choose ingredient based on metropoles-hastings adjusted prob
             ingredients_prob = state.compute_ingredient_prob()
             ingredient = np.random.choice(
@@ -198,13 +187,10 @@ class ChainSimulation:
             # Mix ingredient
             state.mix_ingredient(ingredient)
 
-            # Store current state, cost and value
-            recipes.append(copy.deepcopy(state.recipe))
-            effects.append(state.active_effects)
-            costs.append(state._cost())
-            values.append(state._value())
+            # Store ingredient in recipe
+            recipe[i] = int(ingredient)
 
-        return recipes, effects, costs, values
+        return recipe, state.active_effects, state.cost(), state.value()
 
     def parallel_simulation(
         self,
@@ -242,11 +228,12 @@ class ChainSimulation:
         ) = zip(*results)
 
         # Process results
-        all_recipes = np.array(all_recipes).reshape((num_simulations * num_steps, num_steps))
+        all_recipes = np.array(all_recipes).reshape((
+            num_simulations, num_steps))
         all_effects = np.array(all_effects).reshape((
-            self.n_effects, num_simulations * num_steps))
-        all_costs = np.array(all_costs).reshape(num_simulations * num_steps)
-        all_values = np.array(all_values).reshape(num_simulations * num_steps)
+            num_simulations, self.n_effects))
+        all_costs = np.array(all_costs).reshape(num_simulations)
+        all_values = np.array(all_values).reshape(num_simulations)
         all_profits = all_values - all_costs
         return all_recipes, all_effects, all_costs, all_values, all_profits
 
@@ -270,10 +257,6 @@ class ChainSimulation:
 
 chain = ChainSimulation()
 recipes, effects, costs, values, profits = chain.parallel_simulation(
-    "OG Kush", num_simulations=1000, num_steps=10)
-print(len(recipes))
-# for i in range(len(recipes)):
-#     print(f"\n\nReceitas:{chain.decode_recipe(recipes[i])}.\nEfeitos:{chain.decode_effects(effects[i])}\nCusto: {costs[i]}.\nValor: {values[i]}.\nProfit: {profits[i]}")
-# id_max = np.where(profits == profits.max())[0][0]
-# print(recipes)
-# print(f"\n\nOTIMIZADO:.\nReceitas:{chain.decode_recipe(recipes[id_max])}.\nEfeitos:{chain.decode_effects(effects[id_max])}\nCusto: {costs[id_max]}.\nValor: {values[id_max]}.\nProfit: {profits[id_max]}")
+    "Cocaine", num_simulations=1_000_000, num_steps=8)
+id_max = np.where(profits == profits.max())[0][0]
+print(f"\n\nOTIMIZADO:.\nReceitas:{chain.decode_recipe(recipes[id_max])}.\nEfeitos:{chain.decode_effects(effects[id_max])}\nCusto: {costs[id_max]}.\nValor: {values[id_max]}.\nProfit: {profits[id_max]}")
