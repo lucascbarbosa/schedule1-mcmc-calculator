@@ -13,6 +13,14 @@ class DatabaseArrays:
         products_df: pd.DataFrame,
         rules_df: pd.DataFrame,
     ):
+        """Convert ingredients, effects and products names to id.
+
+        Args:
+            ingredients_df (pd.DataFrame): Ingredients dataframe.
+            effects_df (pd.DataFrame): Effects dataframe.
+            products_df (pd.DataFrame): Products dataframe.
+            rules_df (pd.DataFrame): Rules dataframe.
+        """
         ingredient_to_index = ingredients_df.reset_index().set_index(
             "name")["index"]
         effect_to_index = effects_df.reset_index().set_index(
