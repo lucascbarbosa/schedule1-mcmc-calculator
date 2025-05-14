@@ -203,7 +203,8 @@ class ChainSimulation:
         Args:
             base_product (str): Base product.
             num_simulations (int): Number of parallel simulations.
-            num_steps (int, optional): Max number of simulation steps. Defaults to 8.
+            num_steps (int, optional): Max number of simulation steps.
+            Defaults to 8.
 
         Returns:
             Tuple[Iterable[list], np.ndarray, np.ndarray, np.ndarray]: Results
@@ -257,6 +258,15 @@ class ChainSimulation:
 
 chain = ChainSimulation()
 recipes, effects, costs, values, profits = chain.parallel_simulation(
-    "Cocaine", num_simulations=1_000_000, num_steps=8)
+    "Cocaine", num_simulations=1_000, num_steps=8)
 id_max = np.where(profits == profits.max())[0][0]
-print(f"\n\nOTIMIZADO:.\nReceitas:{chain.decode_recipe(recipes[id_max])}.\nEfeitos:{chain.decode_effects(effects[id_max])}\nCusto: {costs[id_max]}.\nValor: {values[id_max]}.\nProfit: {profits[id_max]}")
+print(
+f"""
+OTIMIZADO:
+Receitas: {chain.decode_recipe(recipes[id_max])}
+Efeitos: {chain.decode_effects(effects[id_max])}
+Custo: {costs[id_max]}
+Valor: {values[id_max]}
+Profit: {profits[id_max]}
+"""
+)
