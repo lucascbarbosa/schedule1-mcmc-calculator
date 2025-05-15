@@ -99,7 +99,7 @@ class ChainState(DatabaseTensors):
         active_effects = self.active_effects.clone()
         if active_effects.sum(dim=0).all() < 8:
             active_effects[
-                int(self.ingredients_effect[0, ingredients])
+                self.ingredients_effect[0, ingredients].to(int)
             ] = 1
         return active_effects
 
@@ -109,19 +109,26 @@ class ChainState(DatabaseTensors):
     ) -> torch.Tensor:
         """Apply effects transition rules for each ingredient."""
         active_effects = self.active_effects.clone().T.unsqueeze(2)
+
         # Apply rule matrix
         effects_result = torch.bmm(
             self.rules[ingredients],
             active_effects
         ).squeeze(2).T
+        for i in range(effects_result.shape[1]):
+            result_col = effects_result[:, i]
+            active_col = active_effects[i, :].squeeze(1)
+            if (result_col == 2.0).any():
+                # Remove duplicated effects
+                result_col[result_col == 2.0] = 1.0
 
-        # Remove doubled effects if exists
-        if (effects_result == 2.0).any():
-            effects_result[effects_result == 2.0] = 1.0
+                # Restore effects
+                restore_mask = (result_col - active_col) == -1
+                result_col[restore_mask] = 1.0
 
-            # Undo incorrect effect deactivation
-            prev_effects = active_effects.squeeze(2).T
-            effects_result[(effects_result - prev_effects) == -1] = 1.0
+                # Update original tensor column
+                effects_result[:, i] = result_col
+
         return effects_result
 
     def mix_ingredient(self, ingredients: torch.Tensor):
@@ -226,12 +233,14 @@ class ChainSimulation(DatabaseTensors):
             neighbour__active_effects = state.apply_effects_rules(
                 ingredients=ingredients
             )
-
             # Apply ingredient effect
+            print(state.active_effects)
             neighbour__active_effects = state.\
                 apply_ingredients_effect(
                     ingredients=ingredients
                 )
+            print(neighbour__active_effects)
+            print('\n\n')
 
             # Calculate probabilities
             neighbours_acceptances[i, :] = self._neighbour_acceptance(
@@ -360,11 +369,7 @@ class ChainSimulation(DatabaseTensors):
 
 
 chain = ChainSimulation()
-# recipe = [
-#     'Horse S*men',
-#     'Motor Oil',
-#     'Paracetamol',
-# ]
+recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
 # recipe = [
 #     'Horse S*men',
 #     'V*agra',
@@ -375,15 +380,16 @@ chain = ChainSimulation()
 #     'Battery'
 # ]
 # results = chain.mix_recipe("OG Kush", recipe)
+# print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-# results = chain.optimize_recipe("OG Kush", batch_size=50, num_steps=10)
-# print(
-# f"""
-# OTIMIZADO:
-# Receita: {results["recipe"]}
-# Efeitos: {results["effects"]}
-# Custo: {results["cost"]}
-# Valor: {results["value"]}
-# Profit: {results["profit"]}
-# """
-# )
+results = chain.optimize_recipe("OG Kush", batch_size=2, num_steps=3)
+print(
+f"""
+OTIMIZADO:
+Receita: {results["recipe"]}
+Efeitos: {results["effects"]}
+Custo: {results["cost"]}
+Valor: {results["value"]}
+Profit: {results["profit"]}
+"""
+)
