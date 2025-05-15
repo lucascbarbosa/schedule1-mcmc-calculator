@@ -80,10 +80,12 @@ class ChainState(DatabaseTensors):
 
     def increment_ingredient_count(
         self,
-        ingredients: torch.Tensor
+        ingredients: torch.Tensor,
+        ingredients_count: torch.Tensor = None,
     ) -> torch.Tensor:
         """Add mixed ingredient to the count."""
-        ingredients_count = self.ingredients_count.clone()
+        if ingredients_count is None:
+            ingredients_count = self.ingredients_count.clone()
         ingredients_count[
             ingredients,
             torch.arange(ingredients.shape[0])
@@ -92,42 +94,54 @@ class ChainState(DatabaseTensors):
 
     def apply_ingredients_effect(
         self,
-        ingredients: torch.Tensor
+        ingredients: torch.Tensor,
+        active_effects: torch.Tensor = None,
     ) -> torch.Tensor:
         """Apply effect from added ingredients."""
-        # Add ingredient effect
-        active_effects = self.active_effects.clone()
+        if active_effects is None:
+            active_effects = self.active_effects.clone()
         if active_effects.sum(dim=0).all() < 8:
             active_effects[
-                self.ingredients_effect[0, ingredients].to(int)
+                self.ingredients_effect[0, ingredients].to(int),
+                torch.arange(ingredients.shape[0])
             ] = 1
         return active_effects
 
     def apply_effects_rules(
         self,
-        ingredients: torch.Tensor
+        ingredients: torch.Tensor,
+        active_effects: torch.Tensor = None,
     ) -> torch.Tensor:
         """Apply effects transition rules for each ingredient."""
-        active_effects = self.active_effects.clone().T.unsqueeze(2)
+        if active_effects is None:
+            active_effects = self.active_effects.clone()
 
-        # Apply rule matrix
+        # Apply rules for the current ingredients
+        rules_batch = self.rules[ingredients]
         effects_result = torch.bmm(
-            self.rules[ingredients],
-            active_effects
+            rules_batch,
+            active_effects.T.unsqueeze(2)
         ).squeeze(2).T
-        for i in range(effects_result.shape[1]):
-            result_col = effects_result[:, i]
-            active_col = active_effects[i, :].squeeze(1)
-            if (result_col == 2.0).any():
-                # Remove duplicated effects
-                result_col[result_col == 2.0] = 1.0
 
-                # Restore effects
-                restore_mask = (result_col - active_col) == -1
-                result_col[restore_mask] = 1.0
+        # Clamp duplicated effects to 1.0
+        duplicated = effects_result == 2.0
+        effects_result[duplicated] = 1.0
 
-                # Update original tensor column
-                effects_result[:, i] = result_col
+        # Restore wrongly deactivated effects
+        for i in range(ingredients.shape[0]):
+            duplicated_ids = torch.nonzero(
+                duplicated[:, i], as_tuple=False).flatten()
+            for target_id in duplicated_ids:
+                source_ids = torch.nonzero(
+                    rules_batch[i, target_id, :] == 1.0,
+                    as_tuple=False
+                ).flatten()
+                for source_id in source_ids:
+                    if (
+                        active_effects[source_id, i] == 1.0 and
+                        effects_result[source_id, i] == 0.0
+                    ):
+                        effects_result[source_id, i] = 1.0
 
         return effects_result
 
@@ -138,15 +152,20 @@ class ChainState(DatabaseTensors):
             ingredients=ingredients
         )
 
+        # print(ingredients)
+        # print(self.active_effects)
         # Apply effects transition rules
         self.active_effects = self.apply_effects_rules(
             ingredients=ingredients
         )
 
+        # print(self.active_effects)
         # Apply ingredient effect
         self.active_effects = self.apply_ingredients_effect(
             ingredients=ingredients
         )
+        # print(self.active_effects)
+        # print("\n\n")
 
 
 class ChainSimulation(DatabaseTensors):
@@ -233,14 +252,13 @@ class ChainSimulation(DatabaseTensors):
             neighbour__active_effects = state.apply_effects_rules(
                 ingredients=ingredients
             )
+
             # Apply ingredient effect
-            print(state.active_effects)
             neighbour__active_effects = state.\
                 apply_ingredients_effect(
-                    ingredients=ingredients
+                    ingredients=ingredients,
+                    active_effects=neighbour__active_effects,
                 )
-            print(neighbour__active_effects)
-            print('\n\n')
 
             # Calculate probabilities
             neighbours_acceptances[i, :] = self._neighbour_acceptance(
@@ -369,7 +387,14 @@ class ChainSimulation(DatabaseTensors):
 
 
 chain = ChainSimulation()
-recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
+# recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
+recipe = [
+    'Cuke',
+    'Energy Drink',
+    'Horse S*men',
+    'Banana',
+    'Horse S*men',
+]
 # recipe = [
 #     'Horse S*men',
 #     'V*agra',
@@ -379,17 +404,18 @@ recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
 #     'Donut',
 #     'Battery'
 # ]
-# results = chain.mix_recipe("OG Kush", recipe)
-# print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
+results = chain.mix_recipe("OG Kush", recipe)
+print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=2, num_steps=3)
-print(
-f"""
-OTIMIZADO:
-Receita: {results["recipe"]}
-Efeitos: {results["effects"]}
-Custo: {results["cost"]}
-Valor: {results["value"]}
-Profit: {results["profit"]}
-"""
-)
+# results = chain.optimize_recipe("OG Kush", batch_size=5, num_steps=5)
+
+# print(
+# f"""
+# OTIMIZADO:
+# Receita: {results["recipe"]}
+# Efeitos: {results["effects"]}
+# Custo: {results["cost"]}
+# Valor: {results["value"]}
+# Profit: {results["profit"]}
+# """
+# )
