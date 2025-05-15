@@ -200,13 +200,14 @@ class StateTensors(DatabaseTensors):
     ) -> torch.Tensor:
         """Apply effect from added ingredients."""
         active_effects = self.active_effects.clone()
+        # Check if sum of effects is leq 8
         sum_effects = active_effects.sum(dim=0)
-        for i in range(ingredients.shape[0]):
-            if sum_effects[i] < 8:
-                active_effects[
-                    self.ingredients_effect[0, ingredients[i]].to(int),
-                    i
-                ] = 1
+        sum_mask = sum_effects < 8
+        # Apply ingredient effects only if sum of effects is leq 8
+        effect_ids = self.ingredients_effect[0, ingredients]
+        filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
+        filtered_effect_ids = effect_ids[sum_mask]
+        active_effects[filtered_effect_ids.to(int), filtered_batch_ids] = 1
         self.active_effects = active_effects
 
     def apply_effects_rules(

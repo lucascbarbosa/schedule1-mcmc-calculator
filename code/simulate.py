@@ -207,13 +207,13 @@ class ChainSimulation(DatabaseTensors):
 
 chain = ChainSimulation()
 # recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
-recipe = [
-    'Cuke',
-    'Energy Drink',
-    'Horse S*men',
-    'Banana',
-    'Horse S*men',
-]
+# recipe = [
+#     'Cuke',
+#     'Energy Drink',
+#     'Horse S*men',
+#     'Banana',
+#     'Horse S*men',
+# ]
 # recipe = [
 #     'Horse S*men',
 #     'V*agra',
@@ -226,14 +226,14 @@ recipe = [
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-# results = chain.optimize_recipe("OG Kush", batch_size=5, num_steps=10)
-# print(
-# f"""
-# OTIMIZADO:
-# Receita: {results["recipe"]}
-# Efeitos: {results["effects"]}
-# Custo: {results["cost"]}
-# Valor: {results["value"]}
-# Profit: {results["profit"]}
-# """
-# )
+results = chain.optimize_recipe("OG Kush", batch_size=5, num_steps=10)
+print(
+f"""
+OTIMIZADO:
+Receita: {results["recipe"]}
+Efeitos: {results["effects"]}
+Custo: {results["cost"]}
+Valor: {results["value"]}
+Profit: {results["profit"]}
+"""
+)
