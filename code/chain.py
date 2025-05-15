@@ -1,15 +1,12 @@
 """Script to create Mixing Chain."""
-import concurrent.futures
-import numpy as np
-import pandas as pd
-from arrays import DatabaseArrays
-from pathlib import Path
-from tqdm import tqdm
-from typing import Iterable, Tuple
+import torch
+from tensors import DatabaseTensors
+from tqdm import trange
+from typing import List, Tuple
 
 
-class ChainState:
-    """Arrays related to chain state.
+class ChainState(DatabaseTensors):
+    """Arrays related to chain state for batched simulation.
 
     The ingredients array maps the ingredients used in the recipe, i.e.,
     the path traveled in the chain.
@@ -19,254 +16,374 @@ class ChainState:
 
     """
     def __init__(
-            self,
-            chain,
-            base_product: str,
+        self,
+        base_product: str,
+        batch_size: int,
+        active_effects: torch.Tensor = [],
+        ingredients_count: torch.Tensor = [],
     ):
-        """Create ingredients and effects arrays.
+        """Create ingredients and effects tensors.
 
         Args:
             base_product (str): Base product used as source state.
-            chain (ChainSimulation): ChainSimulation class.
+            batch_size (int): Number of simulations in batch.
 
         Raises:
             ValueError: If chosen based product.
         """
+        # Instantiate DatabaseTensors
+        super().__init__()
+
         # Get base product cost, value and effect
-        base_product = chain.products_df[
-            chain.products_df["product_name"] == base_product]
+        base_product = self.products_df[
+            self.products_df["product_name"] == base_product]
         if len(base_product) == 0:
             raise ValueError(f"Base product {base_product} is invalid!")
         self.product_value = base_product["value"].iloc[0]
 
-        # Create an integer ingredients array.
-        # Each element of the array represents how many times that
-        # ingredient was used.
-        self.ingredients_count = np.zeros((chain.n_ingredients, 1))
+        if len(active_effects) == 0 and len(ingredients_count) == 0:
+            # Create an integer ingredients array.
+            # Each element of the array represents how many times that
+            # ingredient was used.
+            self.ingredients_count = torch.zeros(
+                (self.n_ingredients, batch_size),
+                dtype=torch.float32,
+                device=self.device
+            )
 
-        # Create a sparse binary effects array.
-        # Earch element of the array indicates if effect is present.
-        self.active_effects = np.zeros((chain.n_effects, 1))
-        self.active_effects[
-            chain.effects_df["effect_name"] ==
-            base_product["effect_name"].iloc[0]
-        ] = 1
+            # Create a sparse binary effects array.
+            # Earch element of the array indicates if effect is present.
+            self.active_effects = torch.zeros(
+                (self.n_effects, batch_size),
+                dtype=torch.float32,
+                device=self.device
+            )
+            self.active_effects[
+                self.effects_df["effect_name"] ==
+                base_product["effect_name"].iloc[0], :
+            ] = 1
+
+        else:
+            self.active_effects = active_effects
+            self.ingredients_count = ingredients_count
 
     def cost(self) -> float:
-        """Calculates the cost of product state."""
-        return float((
-            chain.ingredients_cost @ self.ingredients_count
-        ).item())
+        """Calculates the cost of current state."""
+        return (
+            self.ingredients_cost @ self.ingredients_count
+        )
 
     def value(self) -> float:
-        """Calculates sell value of product state."""
-        mult = float((chain.effects_multiplier @ self.active_effects).item())
+        """Calculates sell value of current state."""
+        mult = self.effects_multiplier @ self.active_effects
         return (1 + mult) * float(self.product_value)
 
-    def mix_ingredient(self, ingredient_id: int):
-        """Mix product with ingredient."""
+    def increment_ingredient_count(
+        self,
+        ingredients: torch.Tensor
+    ) -> torch.Tensor:
+        """Add mixed ingredient to the count."""
+        ingredients_count = self.ingredients_count.clone()
+        ingredients_count[
+            ingredients,
+            torch.arange(ingredients.shape[0])
+        ] += 1.0
+        return ingredients_count
+
+    def apply_ingredients_effect(
+        self,
+        ingredients: torch.Tensor
+    ) -> torch.Tensor:
+        """Apply effect from added ingredients."""
+        # Add ingredient effect
+        active_effects = self.active_effects.clone()
+        if active_effects.sum(dim=0).all() < 8:
+            active_effects[
+                int(self.ingredients_effect[0, ingredients])
+            ] = 1
+        return active_effects
+
+    def apply_effects_rules(
+        self,
+        ingredients: torch.Tensor
+    ) -> torch.Tensor:
+        """Apply effects transition rules for each ingredient."""
+        active_effects = self.active_effects.clone().T.unsqueeze(2)
+        # Apply rule matrix
+        effects_result = torch.bmm(
+            self.rules[ingredients],
+            active_effects
+        ).squeeze(2).T
+
+        # Remove doubled effects if exists
+        if (effects_result == 2.0).any():
+            effects_result[effects_result == 2.0] = 1.0
+
+            # Undo incorrect effect deactivation
+            prev_effects = active_effects.squeeze(2).T
+            effects_result[(effects_result - prev_effects) == -1] = 1.0
+        return effects_result
+
+    def mix_ingredient(self, ingredients: torch.Tensor):
+        """Mix products with ingredients."""
         #  Increment ingredient count
-        self.ingredients_count[ingredient_id] += 1
+        self.ingredients_count = self.increment_ingredient_count(
+            ingredients=ingredients
+        )
 
         # Apply effects transition rules
-        self.active_effects = (
-            (chain.rules[ingredient_id, :, :] @ self.active_effects) > 0
-        ).astype(int)
+        self.active_effects = self.apply_effects_rules(
+            ingredients=ingredients
+        )
 
-        # Add ingredient effect
-        if self.active_effects.sum() < 8:
-            self.active_effects[chain.ingredients_effect[0, ingredient_id]] = 1
+        # Apply ingredient effect
+        self.active_effects = self.apply_ingredients_effect(
+            ingredients=ingredients
+        )
 
-    def compute_ingredient_prob(self) -> Tuple[Iterable[dict], np.ndarray]:
+
+class ChainSimulation(DatabaseTensors):
+    """Class to simulate the mixing chain."""
+    def _init__(self):
+        """___init__."""
+        # Instantiate DatabaseTensors
+        super().__init__()
+
+    def decode_effects(self, effects: torch.Tensor):
+        """Convert effects from id to name."""
+        effects_id = torch.where(effects == 1)[0]
+        return self.effects_df[
+            self.effects_df["effect_id"].isin(effects_id.tolist())
+        ]["effect_name"].tolist()
+
+    def decode_recipe(self, recipe: torch.Tensor):
+        """Convert ingredients from id to name."""
+        id_list = recipe.tolist()
+        id_to_name = self.ingredients_df.set_index(
+            "ingredient_id")["ingredient_name"].to_dict()
+        return [id_to_name[i] for i in id_list]
+
+    def _neighbour_acceptance(
+        self,
+        current_state: ChainState,
+        neighbour__active_effects: torch.Tensor,
+        neighbour__ingredients_count: torch.Tensor,
+    ) -> torch.Tensor:
+        """Calculates probability of choosing each ingredient.
+
+        This is a uniform probability adjusted by the Metropoles-Hastings
+        acceptance parameter that takes into account the profit resulting from
+        adding that ingredient.
+        """
+        # Acceptance parameter
+        neighbour_state = ChainState(
+            base_product=self.base_product,
+            batch_size=self.batch_size,
+            ingredients_count=neighbour__ingredients_count,
+            active_effects=neighbour__active_effects
+        )
+        neighbour_profit = (
+            neighbour_state.value() - neighbour_state.cost()
+        ).ravel()
+        current_profit = current_state.value() - current_state.cost()
+        acceps = torch.exp(
+            torch.clamp(neighbour_profit / current_profit, max=0.0)
+        )
+        return acceps
+
+    def compute_ingredient_prob(self, state: ChainState) -> torch.Tensor:
         """Compute adjusted probability of using each ingredient.
 
         Given a current state, the neighbour states are the results
         from adding an ingredient to the product.
         """
-        # Generate neighbours ingredients arrays
-        neighbours_ingredients = (
-            np.eye(chain.n_ingredients) + self.ingredients_count
+        # The number of neighbours is equal to the number of ingredients,
+        # since the ingredient is the edge that induces the state transition.
+        n_neighbours = self.n_ingredients
+
+        # Generate all possible ingredients tensor.
+        all_ingredients = torch.arange(
+            self.n_ingredients
+        ).unsqueeze(1).expand(-1, self.batch_size)
+
+        # Store neighbours state tensors
+        neighbours_acceptances = torch.zeros((
+            n_neighbours,
+            self.batch_size
+        ))
+
+        for i in range(n_neighbours):
+            # Generate a possible ingredients tensor
+            ingredients = all_ingredients[i, :]
+
+            #  Increment ingredient count
+            neighbour__ingredients_count = state.\
+                increment_ingredient_count(
+                    ingredients=ingredients
+                )
+
+            # Apply effects transition rules to neighbours
+            neighbour__active_effects = state.apply_effects_rules(
+                ingredients=ingredients
+            )
+
+            # Apply ingredient effect
+            neighbour__active_effects = state.\
+                apply_ingredients_effect(
+                    ingredients=ingredients
+                )
+
+            # Calculate probabilities
+            neighbours_acceptances[i, :] = self._neighbour_acceptance(
+                current_state=state,
+                neighbour__active_effects=neighbour__active_effects,
+                neighbour__ingredients_count=neighbour__ingredients_count)
+
+        neighbours_probs = (
+            neighbours_acceptances / neighbours_acceptances.sum(dim=0)
         )
+        return neighbours_probs
 
-        # Generate neighbours effects arrays
-        neighbours_effects = (
-            (chain.rules @ self.active_effects) > 0
-        ).astype(int).reshape((chain.n_ingredients, chain.n_effects)).T
-
-        # Add ingredients effects
-        for i in range(chain.n_ingredients):
-            if neighbours_effects[:, i].sum() < 8:
-                neighbours_effects[chain.ingredients_effect[0, i], i] = 1
-
-        # Acceptance parameter
-        neighbours_values = (
-            (1 + (chain.effects_multiplier @ neighbours_effects))
-            * self.product_value
-        )
-        neighbours_costs = (
-                chain.ingredients_cost @ neighbours_ingredients
-        )
-        neighbours_profit = (neighbours_values - neighbours_costs).ravel()
-        current_profit = self.value() - self.cost()
-        acceptances = np.clip(neighbours_profit / current_profit, 0.0, 1.0)
-
-        # Calculate probabilities
-        probs = acceptances / acceptances.sum()  # Normalize
-        return probs.ravel()
-
-
-class ChainSimulation:
-    """Class to simulate the mixing chain."""
-    def __init__(self):
-        """Mixing chain setup."""
-        # Load data
-        current_dir = Path(__file__).parent
-        ingredients_df = pd.read_json(
-            current_dir.parent / "data/ingredients.json")
-        rules_df = pd.read_json(
-            current_dir.parent / "data/rules.json")
-        effects_df = pd.read_json(
-            current_dir.parent / "data/effects.json")
-        products_df = pd.read_json(
-            current_dir.parent / "data/products.json")
-
-        # Dimensions
-        self.n_ingredients = len(ingredients_df)
-        self.n_effects = len(effects_df)
-
-        ##########################
-        # Create arrays database #
-        # Convert from name to index
-        (
-            self.ingredients_df,
-            self.effects_df,
-            self.products_df,
-            self.rules_df,
-        ) = DatabaseArrays.convert_name_to_index(
-            ingredients_df=ingredients_df,
-            effects_df=effects_df,
-            products_df=products_df,
-            rules_df=rules_df
-        )
-        # Fetch ingredients arrays
-        (
-            self.ingredients_effect,  # Array with ingredients effects
-            self.ingredients_cost,  # Array with ingredients cost
-        ) = DatabaseArrays.create_ingredients_arrays(
-            ingredients_df=self.ingredients_df)
-
-        # Fetch effects arrays
-        (
-            self.effects_multiplier  # Array with effects multiplier
-        ) = DatabaseArrays.create_effects_arrays(effects_df=self.effects_df)
-
-        # Fetch rules arrays
-        self.rules = DatabaseArrays.create_effects_rules_matrix(
-            effects_df=self.effects_df,
-            ingredients_df=self.ingredients_df,
-            rules_df=self.rules_df
-        )  # Array with effects transition rules
-
-    def _simulate(
-        self, args
-    ) -> Tuple[Iterable[list], np.ndarray, np.ndarray, np.ndarray]:
-        """Simulate chain starting with base product."""
-        base_product, num_steps = args
-        # Set base state
-        state = ChainState(
-            chain=self,
-            base_product=base_product,
-        )
-        recipe = np.zeros(num_steps)
-        for i in range(num_steps):
-            # Choose ingredient based on metropoles-hastings adjusted prob
-            ingredients_prob = state.compute_ingredient_prob()
-            ingredient = np.random.choice(
-                a=range(self.n_ingredients), p=ingredients_prob)
-
-            # Mix ingredient
-            state.mix_ingredient(ingredient)
-
-            # Store ingredient in recipe
-            recipe[i] = int(ingredient)
-
-        return recipe, state.active_effects, state.cost(), state.value()
-
-    def parallel_simulation(
+    def optimize_recipe(
         self,
         base_product: str,
-        num_simulations: int,
+        batch_size: int,
         num_steps: int = 8,
-    ) -> Tuple[Iterable[list], np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
         Args:
             base_product (str): Base product.
-            num_simulations (int): Number of parallel simulations.
+            batch_size (int): Number of simulations in batch.
             num_steps (int, optional): Max number of simulation steps.
             Defaults to 8.
 
         Returns:
-            Tuple[Iterable[list], np.ndarray, np.ndarray, np.ndarray]: Results
-            from the simulation.
+            Tuple[List[str], List[str], float, float, float]:
+            Optimal recipe with effects, cost, value and profit.
         """
-        args_list = [(base_product, num_steps) for _ in range(num_simulations)]
+        # Simulation parameters
+        self.batch_size = batch_size
+        self.num_steps = num_steps
+        self.base_product = base_product
 
-        # Run simulations
-        results = []
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            for result in tqdm(
-                executor.map(self._simulate, args_list), total=num_simulations
-            ):
-                results.append(result)
+        state = ChainState(base_product=base_product, batch_size=batch_size)
 
-        # Merge results
-        (
-            all_recipes,
-            all_effects,
-            all_costs,
-            all_values,
-        ) = zip(*results)
+        # Output tensors
+        recipes = torch.zeros(
+            batch_size, num_steps, dtype=torch.long, device=self.device)
 
-        # Process results
-        all_recipes = np.array(all_recipes).reshape((
-            num_simulations, num_steps))
-        all_effects = np.array(all_effects).reshape((
-            num_simulations, self.n_effects))
-        all_costs = np.array(all_costs).reshape(num_simulations)
-        all_values = np.array(all_values).reshape(num_simulations)
-        all_profits = all_values - all_costs
-        return all_recipes, all_effects, all_costs, all_values, all_profits
+        for t in trange(num_steps, desc="Batch simulation"):
+            # Ingredients choice probability (n_ingredients x batch_size)
+            ingredients_probs = self.compute_ingredient_prob(state)
+            ingredients = torch.multinomial(
+                ingredients_probs.T, num_samples=1).squeeze(1)
 
-    def decode_effects(self, effects: np.ndarray):
-        """Convert effects from id to name."""
-        effects_id = np.where(effects == 1)[0]
-        return self.effects_df[
-            self.effects_df["effect_id"].isin(effects_id)]["effect_name"].tolist()
+            # Mix ingredients to state
+            state.mix_ingredient(ingredients=ingredients)
 
-    def decode_recipe(self, recipe: list):
-        """Convert ingredients from id to name."""
-        recipe_converted = []
-        for ingredient in recipe:
-            recipe_converted.append(
-                self.ingredients_df[
-                    self.ingredients_df["ingredient_id"] == ingredient
-                ]["ingredient_name"].iloc[0]
-            )
-        return recipe_converted
+            # Store ingredient in recipe
+            recipes[:, t] = ingredients
+
+        # Calculates profits
+        effects = state.active_effects.T
+        costs = state.cost()
+        values = state.value()
+        profits = values - costs
+
+        # Fetch optimal recipe
+        id_opt = torch.where(profits == profits.max())[0][0]
+        recipe_opt = self.decode_recipe(recipes[id_opt, :])
+        effects_opt = self.decode_effects(effects[id_opt, :])
+        cost_opt = float(costs[0, id_opt])
+        value_opt = float(values[0, id_opt])
+        profit_opt = float(profits[0, id_opt])
+        return {
+            "recipe": recipe_opt,
+            "effects": effects_opt,
+            "cost": cost_opt,
+            "value": value_opt,
+            "profit": profit_opt
+        }
+
+    def mix_recipe(
+        self,
+        base_product: str,
+        recipe: List[str]
+    ) -> Tuple[List[str], float, float, float]:
+        """Create a mix given a recipe.
+
+        Args:
+            base_product (str): Base product.
+            recipe (List): List with order of ingredients to be mixed.
+
+        Returns:
+            Tuple[list, float, float, float]:
+            Optimal recipe with effects, cost, value and profit.
+
+        Raises:
+            ValueError: if ingredient name in recipe is incorrect.
+        """
+        def encode_recipe(recipe: List[str]) -> torch.Tensor:
+            """Convert ingredient names to ids."""
+            name_to_id = self.ingredients_df.set_index(
+                "ingredient_name")["ingredient_id"].to_dict()
+            recipe_encoded = []
+            for n in recipe:
+                if n in name_to_id:
+                    recipe_encoded.append(name_to_id[n])
+                else:
+                    raise ValueError(f"Ingredient name {n} is incorrect!")
+            return torch.tensor(recipe_encoded).reshape((len(recipe), 1))
+
+        self.batch_size = 1
+        # Set base state
+        state = ChainState(base_product=base_product, batch_size=1)
+
+        # Encode ingredients in recipe
+        recipe = encode_recipe(recipe)
+        for i in range(recipe.shape[0]):
+            ingredient = recipe[i]
+            # Mix ingredients to state
+            state.mix_ingredient(ingredients=ingredient)
+
+        effects = self.decode_effects(state.active_effects[:, 0])
+        cost = float(state.cost())
+        value = float(state.value())
+        profit = value - cost
+        return {
+            "effects": effects,
+            "cost": cost,
+            "value": value,
+            "profit": profit
+        }
 
 
 chain = ChainSimulation()
-recipes, effects, costs, values, profits = chain.parallel_simulation(
-    "Cocaine", num_simulations=1_000, num_steps=8)
-id_max = np.where(profits == profits.max())[0][0]
-print(
-f"""
-OTIMIZADO:
-Receitas: {chain.decode_recipe(recipes[id_max])}
-Efeitos: {chain.decode_effects(effects[id_max])}
-Custo: {costs[id_max]}
-Valor: {values[id_max]}
-Profit: {profits[id_max]}
-"""
-)
+# recipe = [
+#     'Horse S*men',
+#     'Motor Oil',
+#     'Paracetamol',
+# ]
+# recipe = [
+#     'Horse S*men',
+#     'V*agra',
+#     'Mega Bean',
+#     'Donut',
+#     'Iodine',
+#     'Donut',
+#     'Battery'
+# ]
+# results = chain.mix_recipe("OG Kush", recipe)
+
+# results = chain.optimize_recipe("OG Kush", batch_size=50, num_steps=10)
+# print(
+# f"""
+# OTIMIZADO:
+# Receita: {results["recipe"]}
+# Efeitos: {results["effects"]}
+# Custo: {results["cost"]}
+# Valor: {results["value"]}
+# Profit: {results["profit"]}
+# """
+# )
