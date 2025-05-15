@@ -1,6 +1,7 @@
 """Script to create tensors used in simulation."""
 import pandas as pd
 import torch
+from copy import deepcopy
 from pathlib import Path
 from typing import Tuple
 
@@ -108,3 +109,154 @@ class DatabaseTensors:
                 row["effect_base"],
                 row["effect_base"]
             ] = 0
+
+
+class StateTensors(DatabaseTensors):
+    """Tensors related to chain state for batched simulation.
+
+    The ingredients array maps the ingredients used in the recipe, i.e.,
+    the path traveled in the chain.
+
+    The effects array indicates the active effects, i.e., the state of
+    the chain.
+
+    """
+    def __init__(
+        self,
+        base_product: str,
+        batch_size: int,
+    ):
+        """Create initial ingredients and effects tensors.
+
+        Args:
+            base_product (str): Base product used as source state.
+            batch_size (int): Number of simulations in batch.
+            device (torch.device): Torch device (cpu or cuda).
+
+        Raises:
+            ValueError: If chosen based product.
+        """
+        # Instantiate DatabaseTensors
+        super().__init__()
+
+        # Get base product cost, value and effect
+        base_product = self.products_df[
+            self.products_df["product_name"] == base_product]
+        if len(base_product) == 0:
+            raise ValueError(f"Base product {base_product} is invalid!")
+        self.product_value = base_product["value"].iloc[0]
+
+        # Create an integer ingredients array.
+        # Each element of the array represents how many times that
+        # ingredient was used.
+        self.ingredients_count = torch.zeros(
+            (self.n_ingredients, batch_size),
+            dtype=torch.float32,
+            device=self.device
+        )
+
+        # Create a sparse binary effects array.
+        # Earch element of the array indicates if effect is present.
+        self.active_effects = torch.zeros(
+            (self.n_effects, batch_size),
+            dtype=torch.float32,
+            device=self.device
+        )
+        self.active_effects[
+            self.effects_df["effect_name"] ==
+            base_product["effect_name"].iloc[0], :
+        ] = 1
+
+    def copy(self):
+        """Copy state."""
+        return deepcopy(self)
+
+    def cost(self) -> float:
+        """Calculates the cost of current state."""
+        return (
+            self.ingredients_cost @ self.ingredients_count
+        )
+
+    def value(self) -> float:
+        """Calculates sell value of current state."""
+        mult = self.effects_multiplier @ self.active_effects
+        return (1 + mult) * float(self.product_value)
+
+    def increment_ingredient_count(
+        self,
+        ingredients: torch.Tensor,
+    ) -> torch.Tensor:
+        """Add mixed ingredient to the count."""
+        ingredients_count = self.ingredients_count.clone()
+        ingredients_count[
+            ingredients,
+            torch.arange(ingredients.shape[0])
+        ] += 1.0
+        self.ingredients_count = ingredients_count
+
+    def apply_ingredients_effect(
+        self,
+        ingredients: torch.Tensor,
+    ) -> torch.Tensor:
+        """Apply effect from added ingredients."""
+        active_effects = self.active_effects.clone()
+        sum_effects = active_effects.sum(dim=0)
+        for i in range(ingredients.shape[0]):
+            if sum_effects[i] < 8:
+                active_effects[
+                    self.ingredients_effect[0, ingredients[i]].to(int),
+                    i
+                ] = 1
+        self.active_effects = active_effects
+
+    def apply_effects_rules(
+        self,
+        ingredients: torch.Tensor,
+    ) -> torch.Tensor:
+        """Apply effects transition rules for each ingredient."""
+        # Apply rules for the current ingredients
+        active_effects = self.active_effects.clone()
+        rules_batch = self.rules[ingredients]
+        effects_result = torch.bmm(
+            rules_batch,
+            active_effects.T.unsqueeze(2)
+        ).squeeze(2).T
+
+        # Clamp duplicated effects to 1.0
+        duplicated = effects_result == 2.0
+        effects_result[duplicated] = 1.0
+
+        # Restore wrongly deactivated effects
+        for i in range(ingredients.shape[0]):
+            duplicated_ids = torch.nonzero(
+                duplicated[:, i], as_tuple=False).flatten()
+            for target_id in duplicated_ids:
+                source_ids = torch.nonzero(
+                    rules_batch[i, target_id, :] == 1.0,
+                    as_tuple=False
+                ).flatten()
+                for source_id in source_ids:
+                    if (
+                        active_effects[source_id, i] == 1.0 and
+                        effects_result[source_id, i] == 0.0
+                    ):
+                        effects_result[source_id, i] = 1.0
+
+        self.active_effects = effects_result
+
+    def mix_ingredient(self, ingredients: torch.Tensor):
+        """Mix products with ingredients."""
+        #  Increment ingredient count
+        self.increment_ingredient_count(
+            ingredients=ingredients
+        )
+
+        # Apply effects transition rules
+        self.apply_effects_rules(
+            ingredients=ingredients
+        )
+
+        # Apply ingredient effect
+        self.apply_ingredients_effect(
+            ingredients=ingredients
+        )

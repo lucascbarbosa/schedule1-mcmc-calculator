@@ -1,166 +1,8 @@
 """Script to create Mixing Chain."""
+from tensors import DatabaseTensors, StateTensors
 import torch
-from tensors import DatabaseTensors
 from tqdm import trange
 from typing import List, Tuple
-
-
-class ChainState(DatabaseTensors):
-    """Arrays related to chain state for batched simulation.
-
-    The ingredients array maps the ingredients used in the recipe, i.e.,
-    the path traveled in the chain.
-
-    The effects array indicates the active effects, i.e., the state of
-    the chain.
-
-    """
-    def __init__(
-        self,
-        base_product: str,
-        batch_size: int,
-        active_effects: torch.Tensor = [],
-        ingredients_count: torch.Tensor = [],
-    ):
-        """Create ingredients and effects tensors.
-
-        Args:
-            base_product (str): Base product used as source state.
-            batch_size (int): Number of simulations in batch.
-
-        Raises:
-            ValueError: If chosen based product.
-        """
-        # Instantiate DatabaseTensors
-        super().__init__()
-
-        # Get base product cost, value and effect
-        base_product = self.products_df[
-            self.products_df["product_name"] == base_product]
-        if len(base_product) == 0:
-            raise ValueError(f"Base product {base_product} is invalid!")
-        self.product_value = base_product["value"].iloc[0]
-
-        if len(active_effects) == 0 and len(ingredients_count) == 0:
-            # Create an integer ingredients array.
-            # Each element of the array represents how many times that
-            # ingredient was used.
-            self.ingredients_count = torch.zeros(
-                (self.n_ingredients, batch_size),
-                dtype=torch.float32,
-                device=self.device
-            )
-
-            # Create a sparse binary effects array.
-            # Earch element of the array indicates if effect is present.
-            self.active_effects = torch.zeros(
-                (self.n_effects, batch_size),
-                dtype=torch.float32,
-                device=self.device
-            )
-            self.active_effects[
-                self.effects_df["effect_name"] ==
-                base_product["effect_name"].iloc[0], :
-            ] = 1
-
-        else:
-            self.active_effects = active_effects
-            self.ingredients_count = ingredients_count
-
-    def cost(self) -> float:
-        """Calculates the cost of current state."""
-        return (
-            self.ingredients_cost @ self.ingredients_count
-        )
-
-    def value(self) -> float:
-        """Calculates sell value of current state."""
-        mult = self.effects_multiplier @ self.active_effects
-        return (1 + mult) * float(self.product_value)
-
-    def increment_ingredient_count(
-        self,
-        ingredients: torch.Tensor,
-        ingredients_count: torch.Tensor = None,
-    ) -> torch.Tensor:
-        """Add mixed ingredient to the count."""
-        if ingredients_count is None:
-            ingredients_count = self.ingredients_count.clone()
-        ingredients_count[
-            ingredients,
-            torch.arange(ingredients.shape[0])
-        ] += 1.0
-        return ingredients_count
-
-    def apply_ingredients_effect(
-        self,
-        ingredients: torch.Tensor,
-        active_effects: torch.Tensor = None,
-    ) -> torch.Tensor:
-        """Apply effect from added ingredients."""
-        if active_effects is None:
-            active_effects = self.active_effects.clone()
-        if active_effects.sum(dim=0).all() < 8:
-            active_effects[
-                self.ingredients_effect[0, ingredients].to(int),
-                torch.arange(ingredients.shape[0])
-            ] = 1
-        return active_effects
-
-    def apply_effects_rules(
-        self,
-        ingredients: torch.Tensor,
-        active_effects: torch.Tensor = None,
-    ) -> torch.Tensor:
-        """Apply effects transition rules for each ingredient."""
-        if active_effects is None:
-            active_effects = self.active_effects.clone()
-
-        # Apply rules for the current ingredients
-        rules_batch = self.rules[ingredients]
-        effects_result = torch.bmm(
-            rules_batch,
-            active_effects.T.unsqueeze(2)
-        ).squeeze(2).T
-
-        # Clamp duplicated effects to 1.0
-        duplicated = effects_result == 2.0
-        effects_result[duplicated] = 1.0
-
-        # Restore wrongly deactivated effects
-        for i in range(ingredients.shape[0]):
-            duplicated_ids = torch.nonzero(
-                duplicated[:, i], as_tuple=False).flatten()
-            for target_id in duplicated_ids:
-                source_ids = torch.nonzero(
-                    rules_batch[i, target_id, :] == 1.0,
-                    as_tuple=False
-                ).flatten()
-                for source_id in source_ids:
-                    if (
-                        active_effects[source_id, i] == 1.0 and
-                        effects_result[source_id, i] == 0.0
-                    ):
-                        effects_result[source_id, i] = 1.0
-
-        return effects_result
-
-    def mix_ingredient(self, ingredients: torch.Tensor):
-        """Mix products with ingredients."""
-        #  Increment ingredient count
-        self.ingredients_count = self.increment_ingredient_count(
-            ingredients=ingredients
-        )
-
-        # Apply effects transition rules
-        self.active_effects = self.apply_effects_rules(
-            ingredients=ingredients
-        )
-
-        # Apply ingredient effect
-        self.active_effects = self.apply_ingredients_effect(
-            ingredients=ingredients
-        )
 
 
 class ChainSimulation(DatabaseTensors):
@@ -186,9 +28,8 @@ class ChainSimulation(DatabaseTensors):
 
     def _neighbour_acceptance(
         self,
-        current_state: ChainState,
-        neighbour__active_effects: torch.Tensor,
-        neighbour__ingredients_count: torch.Tensor,
+        current_state: StateTensors,
+        neighbour_state: StateTensors,
     ) -> torch.Tensor:
         """Calculates probability of choosing each ingredient.
 
@@ -197,12 +38,6 @@ class ChainSimulation(DatabaseTensors):
         adding that ingredient.
         """
         # Acceptance parameter
-        neighbour_state = ChainState(
-            base_product=self.base_product,
-            batch_size=self.batch_size,
-            ingredients_count=neighbour__ingredients_count,
-            active_effects=neighbour__active_effects
-        )
         neighbour_profit = (
             neighbour_state.value() - neighbour_state.cost()
         ).ravel()
@@ -212,7 +47,7 @@ class ChainSimulation(DatabaseTensors):
         )
         return acceps
 
-    def compute_ingredient_prob(self, state: ChainState) -> torch.Tensor:
+    def compute_ingredient_prob(self, state: StateTensors) -> torch.Tensor:
         """Compute adjusted probability of using each ingredient.
 
         Given a current state, the neighbour states are the results
@@ -234,32 +69,21 @@ class ChainSimulation(DatabaseTensors):
         ))
 
         for i in range(n_neighbours):
-            # Generate a possible ingredients tensor
             ingredients = all_ingredients[i, :]
 
-            #  Increment ingredient count
-            neighbour__ingredients_count = state.\
-                increment_ingredient_count(
-                    ingredients=ingredients
-                )
+            # Copy state
+            neighbour_state = state.copy()
 
-            # Apply effects transition rules to neighbours
-            neighbour__active_effects = state.apply_effects_rules(
+            # Mix ingredient
+            neighbour_state.mix_ingredient(
                 ingredients=ingredients
             )
-
-            # Apply ingredient effect
-            neighbour__active_effects = state.\
-                apply_ingredients_effect(
-                    ingredients=ingredients,
-                    active_effects=neighbour__active_effects,
-                )
 
             # Calculate probabilities
             neighbours_acceptances[i, :] = self._neighbour_acceptance(
                 current_state=state,
-                neighbour__active_effects=neighbour__active_effects,
-                neighbour__ingredients_count=neighbour__ingredients_count)
+                neighbour_state=neighbour_state
+            )
 
         neighbours_probs = (
             neighbours_acceptances / neighbours_acceptances.sum(dim=0)
@@ -289,7 +113,7 @@ class ChainSimulation(DatabaseTensors):
         self.num_steps = num_steps
         self.base_product = base_product
 
-        state = ChainState(base_product=base_product, batch_size=batch_size)
+        state = StateTensors(base_product=base_product, batch_size=batch_size)
 
         # Output tensors
         recipes = torch.zeros(
@@ -360,7 +184,7 @@ class ChainSimulation(DatabaseTensors):
 
         self.batch_size = 1
         # Set base state
-        state = ChainState(base_product=base_product, batch_size=1)
+        state = StateTensors(base_product=base_product, batch_size=1)
 
         # Encode ingredients in recipe
         recipe = encode_recipe(recipe)
@@ -383,13 +207,13 @@ class ChainSimulation(DatabaseTensors):
 
 chain = ChainSimulation()
 # recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
-# recipe = [
-#     'Cuke',
-#     'Energy Drink',
-#     'Horse S*men',
-#     'Banana',
-#     'Horse S*men',
-# ]
+recipe = [
+    'Cuke',
+    'Energy Drink',
+    'Horse S*men',
+    'Banana',
+    'Horse S*men',
+]
 # recipe = [
 #     'Horse S*men',
 #     'V*agra',
@@ -402,14 +226,14 @@ chain = ChainSimulation()
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=100, num_steps=8)
-print(
-f"""
-OTIMIZADO:
-Receita: {results["recipe"]}
-Efeitos: {results["effects"]}
-Custo: {results["cost"]}
-Valor: {results["value"]}
-Profit: {results["profit"]}
-"""
-)
+# results = chain.optimize_recipe("OG Kush", batch_size=5, num_steps=10)
+# print(
+# f"""
+# OTIMIZADO:
+# Receita: {results["recipe"]}
+# Efeitos: {results["effects"]}
+# Custo: {results["cost"]}
+# Valor: {results["value"]}
+# Profit: {results["profit"]}
+# """
+# )
