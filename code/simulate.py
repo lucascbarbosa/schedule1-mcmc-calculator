@@ -138,7 +138,7 @@ class ChainSimulation(DatabaseTensors):
         profits = values - costs
 
         # Fetch optimal recipe
-        id_opt = torch.where(profits == profits.max())[0][0]
+        id_opt = torch.where(profits == profits.max())[1][0]
         recipe_opt = self.decode_recipe(recipes[id_opt, :])
         effects_opt = self.decode_effects(effects[id_opt, :])
         cost_opt = float(costs[0, id_opt])
@@ -223,10 +223,11 @@ chain = ChainSimulation()
 #     'Donut',
 #     'Battery'
 # ]
+# recipe = ['Iodine', 'Flu Medicine', 'Horse S*men', 'Mouth Wash', 'Banana', 'Horse S*men', 'Iodine', 'Banana']
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=5, num_steps=10)
+results = chain.optimize_recipe("OG Kush", batch_size=100_000, num_steps=8)
 print(
 f"""
 OTIMIZADO:
