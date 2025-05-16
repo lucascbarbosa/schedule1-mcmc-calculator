@@ -72,7 +72,11 @@ class ChainSimulation(DatabaseTensors):
             ingredients = all_ingredients[i, :]
 
             # Copy state
-            neighbour_state = state.copy()
+            ingredients_count, active_effects = state.get_tensors()
+            neighbour_state = StateTensors(
+                self.base_product, self.batch_size
+            )
+            neighbour_state.set_tensors(ingredients_count, active_effects)
 
             # Mix ingredient
             neighbour_state.mix_ingredient(
@@ -227,7 +231,7 @@ chain = ChainSimulation()
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=100_000, num_steps=8)
+results = chain.optimize_recipe("OG Kush", batch_size=1_000_000, num_steps=8)
 print(
 f"""
 OTIMIZADO:

@@ -1,7 +1,6 @@
 """Script to create tensors used in simulation."""
 import pandas as pd
 import torch
-from copy import deepcopy
 from pathlib import Path
 from typing import Tuple
 
@@ -167,9 +166,18 @@ class StateTensors(DatabaseTensors):
             base_product["effect_name"].iloc[0], :
         ] = 1
 
-    def copy(self):
-        """Copy state."""
-        return deepcopy(self)
+    def get_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get ingredients and effects tensors."""
+        return self.ingredients_count.clone(), self.active_effects.clone()
+
+    def set_tensors(
+        self,
+        ingredients_count: torch.Tensor,
+        active_effects: torch.Tensor
+    ):
+        """Set ingredients and effects tensors."""
+        self.ingredients_count = ingredients_count
+        self.active_effects = active_effects
 
     def cost(self) -> float:
         """Calculates the cost of current state."""
