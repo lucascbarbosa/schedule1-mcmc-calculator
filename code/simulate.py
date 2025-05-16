@@ -30,19 +30,16 @@ class ChainSimulation(DatabaseTensors):
         self,
         current_state: StateTensors,
         neighbour_state: StateTensors,
-        T: float = 1.0,
+        step: int,
     ) -> torch.Tensor:
         """Calculates probability of choosing each ingredient.
 
         This is a Boltzmann probability adjusted by the Metropoles-Hastings
         acceptance parameter that takes into account the profit resulting from
         adding that ingredient.
-
-        Args:
-            current_state (StateTensor): Current state in chain.
-            neighbour_state (StateTensor): Neighbour state.
-            T (float): Boltzmann temperature parameter.
         """
+        T = self.T0 / torch.log(torch.tensor(step + 1.0))
+
         # Acceptance parameter
         neighbour_profit = (
             neighbour_state.value() - neighbour_state.cost()
@@ -53,7 +50,8 @@ class ChainSimulation(DatabaseTensors):
         )
         return acceps
 
-    def compute_ingredient_prob(self, state: StateTensors) -> torch.Tensor:
+    def compute_ingredient_prob(
+        self, state: StateTensors, step: int) -> torch.Tensor:
         """Compute adjusted probability of using each ingredient.
 
         Given a current state, the neighbour states are the results
@@ -92,7 +90,8 @@ class ChainSimulation(DatabaseTensors):
             # Calculate probabilities
             neighbours_acceptances[i, :] = self._neighbour_acceptance(
                 current_state=state,
-                neighbour_state=neighbour_state
+                neighbour_state=neighbour_state,
+                step=step,
             )
 
         neighbours_probs = (
@@ -105,6 +104,7 @@ class ChainSimulation(DatabaseTensors):
         base_product: str,
         batch_size: int,
         num_steps: int = 8,
+        T0: float = 1.0,
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
@@ -113,6 +113,7 @@ class ChainSimulation(DatabaseTensors):
             batch_size (int): Number of simulations in batch.
             num_steps (int, optional): Max number of simulation steps.
             Defaults to 8.
+            T (float, optional): Boltzmann temperature. Defaults to 1.0.
 
         Returns:
             Tuple[List[str], List[str], float, float, float]:
@@ -122,6 +123,7 @@ class ChainSimulation(DatabaseTensors):
         self.batch_size = batch_size
         self.num_steps = num_steps
         self.base_product = base_product
+        self.T0 = T0
 
         state = StateTensors(base_product=base_product, batch_size=batch_size)
 
@@ -131,7 +133,7 @@ class ChainSimulation(DatabaseTensors):
 
         for t in trange(num_steps, desc="Batch simulation"):
             # Ingredients choice probability (n_ingredients x batch_size)
-            ingredients_probs = self.compute_ingredient_prob(state)
+            ingredients_probs = self.compute_ingredient_prob(state, t)
             ingredients = torch.multinomial(
                 ingredients_probs.T, num_samples=1).squeeze(1)
 
