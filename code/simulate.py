@@ -241,7 +241,8 @@ chain = ChainSimulation()
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=10_000, num_steps=8)
+results = chain.optimize_recipe(
+    "OG Kush", batch_size=100_000, num_steps=8, T0=5.0)
 print(
 f"""
 OTIMIZADO:
