@@ -30,20 +30,26 @@ class ChainSimulation(DatabaseTensors):
         self,
         current_state: StateTensors,
         neighbour_state: StateTensors,
+        T: float = 1.0,
     ) -> torch.Tensor:
         """Calculates probability of choosing each ingredient.
 
-        This is a uniform probability adjusted by the Metropoles-Hastings
+        This is a Boltzmann probability adjusted by the Metropoles-Hastings
         acceptance parameter that takes into account the profit resulting from
         adding that ingredient.
+
+        Args:
+            current_state (StateTensor): Current state in chain.
+            neighbour_state (StateTensor): Neighbour state.
+            T (float): Boltzmann temperature parameter.
         """
         # Acceptance parameter
         neighbour_profit = (
             neighbour_state.value() - neighbour_state.cost()
         ).ravel()
         current_profit = current_state.value() - current_state.cost()
-        acceps = torch.exp(
-            torch.clamp(neighbour_profit / current_profit, max=0.0)
+        acceps = torch.clamp(
+            torch.exp((neighbour_profit - current_profit) / T), max=1.0
         )
         return acceps
 
@@ -231,7 +237,7 @@ chain = ChainSimulation()
 # results = chain.mix_recipe("OG Kush", recipe)
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
-results = chain.optimize_recipe("OG Kush", batch_size=1_000_000, num_steps=8)
+results = chain.optimize_recipe("OG Kush", batch_size=10_000, num_steps=8)
 print(
 f"""
 OTIMIZADO:
