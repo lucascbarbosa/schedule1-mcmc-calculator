@@ -36,15 +36,17 @@ class ChainSimulation(DatabaseTensors):
 
         This is a Boltzmann probability adjusted by the Metropoles-Hastings
         acceptance parameter that takes into account the profit resulting from
-        adding that ingredient.
+        adding that ingredient. The temperature parameter is computed via
+        simulated annealing with log schedule.
         """
-        T = self.T0 / torch.log(torch.tensor(step + 1.0))
-
         # Acceptance parameter
         neighbour_profit = (
             neighbour_state.value() - neighbour_state.cost()
         ).ravel()
         current_profit = current_state.value() - current_state.cost()
+
+        # Fetch current temperature parameter via log schedule
+        T = self.T0 / torch.log(torch.tensor(step + 1.0))
         acceps = torch.clamp(
             torch.exp((neighbour_profit - current_profit) / T), max=1.0
         )
