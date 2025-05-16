@@ -26,6 +26,10 @@ class ChainSimulation(DatabaseTensors):
             "ingredient_id")["ingredient_name"].to_dict()
         return [id_to_name[i] for i in id_list]
 
+    def _boltzmann_temperature(self, step: int):
+        """Calculate temperature parameter of Boltzmann distribution."""
+        return self.T0 / torch.log(torch.tensor(step + 1.01))
+
     def _neighbour_acceptance(
         self,
         current_state: StateTensors,
@@ -46,7 +50,7 @@ class ChainSimulation(DatabaseTensors):
         current_profit = current_state.value() - current_state.cost()
 
         # Fetch current temperature parameter via log schedule
-        T = self.T0 / torch.log(torch.tensor(step + 1.0))
+        T = self._boltzmann_temperature(step)
         acceps = torch.clamp(
             torch.exp((neighbour_profit - current_profit) / T), max=1.0
         )
@@ -68,8 +72,12 @@ class ChainSimulation(DatabaseTensors):
             self.n_ingredients
         ).unsqueeze(1).expand(-1, self.batch_size)
 
-        # Store neighbours state tensors
-        neighbours_acceptances = torch.zeros((
+        # Store neighbours acceptance and profit
+        neighbours_acceptance = torch.zeros((
+            n_neighbours,
+            self.batch_size
+        ))
+        neighbours_profit = torch.zeros((
             n_neighbours,
             self.batch_size
         ))
@@ -77,7 +85,7 @@ class ChainSimulation(DatabaseTensors):
         for i in range(n_neighbours):
             ingredients = all_ingredients[i, :]
 
-            # Copy state
+            # Create neighbour state
             ingredients_count, active_effects = state.get_tensors()
             neighbour_state = StateTensors(
                 self.base_product, self.batch_size
@@ -89,16 +97,23 @@ class ChainSimulation(DatabaseTensors):
                 ingredients=ingredients
             )
 
-            # Calculate probabilities
-            neighbours_acceptances[i, :] = self._neighbour_acceptance(
+            # Store acceptance
+            neighbours_acceptance[i, :] = self._neighbour_acceptance(
                 current_state=state,
                 neighbour_state=neighbour_state,
                 step=step,
             )
 
-        neighbours_probs = (
-            neighbours_acceptances / neighbours_acceptances.sum(dim=0)
-        )
+            # Store profit
+            neighbours_profit[i, :] = (
+                neighbour_state.value() - neighbour_state.cost()
+            )
+
+        # Calculate probability based on profit and adjust by acceptance
+        T = self._boltzmann_temperature(step)
+        neighbours_probs = torch.exp(
+            neighbours_profit / T) * neighbours_acceptance
+        neighbours_probs /= neighbours_probs.sum(dim=0)
         return neighbours_probs
 
     def optimize_recipe(
@@ -242,7 +257,7 @@ chain = ChainSimulation()
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
 results = chain.optimize_recipe(
-    "OG Kush", batch_size=500_000, num_steps=8, T0=5.0)
+    "OG Kush", batch_size=10, num_steps=4, T0=5.0)
 print(
 f"""
 OTIMIZADO:
