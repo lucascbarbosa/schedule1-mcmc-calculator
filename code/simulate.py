@@ -111,9 +111,10 @@ class ChainSimulation(DatabaseTensors):
 
         # Calculate probability based on profit and adjust by acceptance
         T = self._boltzmann_temperature(step)
-        neighbours_probs = torch.exp(
-            neighbours_profit / T) * neighbours_acceptance
-        neighbours_probs /= neighbours_probs.sum(dim=0)
+        neighbours_probs = (
+            torch.exp(neighbours_profit / T) * neighbours_acceptance /
+            torch.exp(neighbours_profit / T).sum(dim=0)
+        )
         return neighbours_probs
 
     def optimize_recipe(
@@ -257,7 +258,7 @@ chain = ChainSimulation()
 # print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
 
 results = chain.optimize_recipe(
-    "OG Kush", batch_size=10, num_steps=4, T0=5.0)
+    "Cocaine", batch_size=10_000, num_steps=8, T0=10.0)
 print(
 f"""
 OTIMIZADO:
