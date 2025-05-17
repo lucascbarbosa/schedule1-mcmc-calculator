@@ -146,7 +146,15 @@ class ChainSimulation(DatabaseTensors):
 
         # Output tensors
         recipes = torch.zeros(
-            batch_size, num_steps, dtype=torch.long, device=self.device)
+            num_steps, batch_size, dtype=torch.long, device=self.device)
+        effects = torch.zeros(
+            num_steps, batch_size, self.n_effects,
+            dtype=torch.long, device=self.device
+        )
+        costs = torch.zeros(
+            num_steps, batch_size, dtype=torch.long, device=self.device)
+        values = torch.zeros(
+            num_steps, batch_size, dtype=torch.long, device=self.device)
 
         for t in trange(num_steps, desc="Batch simulation"):
             # Ingredients choice probability (n_ingredients x batch_size)
@@ -158,28 +166,38 @@ class ChainSimulation(DatabaseTensors):
             state.mix_ingredient(ingredients=ingredients)
 
             # Store ingredient in recipe
-            recipes[:, t] = ingredients
+            recipes[t, :] = ingredients
+            effects[t, :, :] = state.active_effects.T
+            costs[t, :] = state.cost()
+            values[t, :] = state.value()
 
         # Calculates profits
-        effects = state.active_effects.T
-        costs = state.cost()
-        values = state.value()
         profits = values - costs
 
         # Fetch optimal recipe
-        id_opt = torch.where(profits == profits.max())[1][0]
-        recipe_opt = self.decode_recipe(recipes[id_opt, :])
-        effects_opt = self.decode_effects(effects[id_opt, :])
-        cost_opt = float(costs[0, id_opt])
-        value_opt = float(values[0, id_opt])
-        profit_opt = float(profits[0, id_opt])
-        return {
+        id_opt = torch.where(profits == profits.max())
+        opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
+        recipe_opt = self.decode_recipe(recipes[:opt_step + 1, opt_sim])
+        effects_opt = self.decode_effects(effects[opt_step, opt_sim, :])
+        cost_opt = float(costs[opt_step, opt_sim])
+        value_opt = float(values[opt_step, opt_sim])
+        profit_opt = float(profits[opt_step, opt_sim])
+        results_data = {
+            "recipes": recipes,
+            "effects": effects,
+            "costs": costs,
+            "values": values,
+            "profits": profits
+        }
+        results_opt = {
             "recipe": recipe_opt,
             "effects": effects_opt,
             "cost": cost_opt,
             "value": value_opt,
             "profit": profit_opt
         }
+
+        return results_data, results_opt
 
     def mix_recipe(
         self,
@@ -232,39 +250,3 @@ class ChainSimulation(DatabaseTensors):
             "value": value,
             "profit": profit
         }
-
-
-chain = ChainSimulation()
-# recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
-# recipe = [
-#     'Cuke',
-#     'Energy Drink',
-#     'Horse S*men',
-#     'Banana',
-#     'Horse S*men',
-# ]
-# recipe = [
-#     'Horse S*men',
-#     'V*agra',
-#     'Mega Bean',
-#     'Donut',
-#     'Iodine',
-#     'Donut',
-#     'Battery'
-# ]
-# recipe = ['Iodine', 'Flu Medicine', 'Horse S*men', 'Mouth Wash', 'Banana', 'Horse S*men', 'Iodine', 'Banana']
-# results = chain.mix_recipe("OG Kush", recipe)
-# print(f"Receita: {recipe}\nEfeitos: {results['effects']}.\nCusto: {results['cost']}\nValor: {results['value']}")
-
-results = chain.optimize_recipe(
-    "OG Kush", batch_size=5, num_steps=8, T0=10.0)
-print(
-f"""
-OTIMIZADO:
-Receita: {results["recipe"]}
-Efeitos: {results["effects"]}
-Custo: {results["cost"]}
-Valor: {results["value"]}
-Profit: {results["profit"]}
-"""
-)
