@@ -102,13 +102,15 @@ class ChainSimulation(DatabaseTensors):
         ingredients_count, active_effects = state.get_tensors()
 
         # Set neighbours state tensors
-        neighbours_ingredients_count = ingredients_count.repeat(
-            1, self.n_ingredients)
-        neighbours_active_effects = active_effects.repeat(
-            1, self.n_ingredients)
-        neighbours_state.set_tensors(
-            neighbours_ingredients_count,
-            neighbours_active_effects
+        neighbours_state.ingredients_count.copy_(
+            ingredients_count.repeat(
+                1, self.n_ingredients
+            )
+        )
+        neighbours_state.active_effects.copy_(
+            active_effects.repeat(
+                1, self.n_ingredients
+            )
         )
 
         # Mix ingredient
@@ -177,7 +179,7 @@ class ChainSimulation(DatabaseTensors):
         # Define neighbours state
         neighbours_state = StateTensors(
             self.base_product,
-            self.batch_size,
+            self.batch_size * self.n_ingredients,
             torch_device=self.device
         )
 

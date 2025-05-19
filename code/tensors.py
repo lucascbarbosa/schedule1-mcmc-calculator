@@ -172,15 +172,6 @@ class StateTensors(DatabaseTensors):
         """Get ingredients and effects tensors."""
         return self.ingredients_count.clone(), self.active_effects.clone()
 
-    def set_tensors(
-        self,
-        ingredients_count: torch.Tensor,
-        active_effects: torch.Tensor
-    ):
-        """Set ingredients and effects tensors."""
-        self.ingredients_count = ingredients_count
-        self.active_effects = active_effects
-
     def cost(self) -> float:
         """Calculates the cost of current state."""
         return (
