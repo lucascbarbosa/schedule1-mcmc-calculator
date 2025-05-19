@@ -196,6 +196,10 @@ class StateTensors(DatabaseTensors):
         """Calculates profit of current state."""
         return self.value() - self.cost()
 
+    def effects_distance(self, desired_effects: torch.Tensor) -> float:
+        """Distance from active and desired effects."""
+        return torch.sum((self.active_effects - desired_effects)**2)
+
     def increment_ingredient_count(
         self,
         ingredients: torch.Tensor,

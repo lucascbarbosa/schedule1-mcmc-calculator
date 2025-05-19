@@ -1,5 +1,6 @@
 """Script to create Mixing Chain."""
 from tensors import DatabaseTensors, StateTensors
+import time
 import torch
 from typing import List, Tuple
 
@@ -179,6 +180,7 @@ class ChainSimulation(DatabaseTensors):
                 torch_device=self.device
             )
             for t in range(num_steps):
+                start_time = time.time()
                 print(f"Batch simulation {s + 1}: Step {t + 1}")
                 # Ingredients choice probability (n_ingredients x batch_size)
                 ingredients_probs = self.compute_ingredient_prob(state, t)
@@ -198,6 +200,7 @@ class ChainSimulation(DatabaseTensors):
                     t, s * batch_size:(s + 1) * batch_size] = state.cost()
                 values[
                     t, s * batch_size:(s + 1) * batch_size] = state.value()
+                print(f"TET: {round(time.time() - start_time, 2)}")
 
         # Calculates profits
         profits = values - costs
