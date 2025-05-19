@@ -28,13 +28,14 @@ class ChainSimulation(DatabaseTensors):
         """Convert from effects name to id."""
         name_to_id = self.effects_df.set_index(
             "effect_name")["effect_id"].to_dict()
-        effects_encoded = []
+        effects_encoded = torch.zeros(
+            (self.n_effects, 1), device=self.device)
         for n in effects:
             if n in name_to_id:
-                effects_encoded.append(name_to_id[n])
+                effects_encoded[name_to_id[n]] = 1.0
             else:
                 raise ValueError(f"Effect name {n} is incorrect!")
-        return torch.tensor(effects_encoded).reshape((len(effects), 1))
+        return effects_encoded
 
     def _decode_recipe(self, recipe: torch.Tensor):
         """Convert from ingredients id to name."""
@@ -67,16 +68,34 @@ class ChainSimulation(DatabaseTensors):
         adding that ingredient. The temperature parameter is computed via
         simulated annealing with log schedule.
         """
-        # Compute profits
-        current_profit = current_state.profit()
-        neighbours_profit = neighbours_state.profit().reshape((
-            self.n_ingredients, self.batch_size
-        ))
-
         # Fetch current temperature parameter via log schedule
         T = self._boltzmann_temperature(step)
+
+        # Compute objective function for current and neighbour states
+        if self.objective_function == 'profit':
+            current_obj = current_state.profit()
+            neighbours_obj = neighbours_state.profit().reshape((
+                self.n_ingredients, self.batch_size
+            ))
+
+        elif self.objective_function == 'effects':
+            desired_effects = self._encode_effects(
+                ['Tropic-Thunder', 'Anti-Gravity', 'Zombifying', 'Jennerising',
+                 'Glowing', 'Cyclopean', 'Bright-Eyed', 'Thought-Provoking']
+            )
+            current_obj = current_state.effects_distance(
+                desired_effects=desired_effects)
+            neighbours_obj = neighbours_state.effects_distance(
+                desired_effects=desired_effects).reshape(
+                    (self.n_ingredients, self.batch_size)
+                )
+
+        else:
+            raise ValueError(
+                f"Objective function {self.objective_function} not available!"
+            )
         acceps = torch.clamp(
-            torch.exp((neighbours_profit - current_profit) / T), max=1.0
+            torch.exp((neighbours_obj - current_obj) / T), max=1.0
         )
         return acceps
 
@@ -129,6 +148,7 @@ class ChainSimulation(DatabaseTensors):
     def optimize_recipe(
         self,
         base_product: str,
+        objective_function: str,
         num_simulations: int,
         batch_size: int,
         num_steps: int = 8,
@@ -140,6 +160,8 @@ class ChainSimulation(DatabaseTensors):
             base_product (str): Base product.
             num_simulations (int): Number of batches simulated.
             batch_size (int): Number of recipes in batch.
+            objective_function (str): Objective function used in boltzmann
+            distribution.
             num_steps (int, optional): Number of simulation steps.
             Defaults to 8.
             T0 (float, optional): Initial value for Boltzmann temperature
@@ -154,6 +176,7 @@ class ChainSimulation(DatabaseTensors):
         self.num_steps = num_steps
         self.base_product = base_product
         self.T0 = T0
+        self.objective_function = objective_function
 
         # Output tensors
         recipes = torch.zeros(
