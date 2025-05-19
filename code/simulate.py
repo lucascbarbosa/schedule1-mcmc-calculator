@@ -213,7 +213,7 @@ class ChainSimulation(DatabaseTensors):
                         t, s * batch_size:(s + 1) * batch_size] = state.cost()
                     values[
                         t, s * batch_size:(s + 1) * batch_size] = state.value()
-                    print(f"TET: {round(time.time() - start_time, 2)}")
+                    print(f"TET: {round(time.time() - start_time, 2)}s")
 
         # Calculates profits
         profits = values - costs
