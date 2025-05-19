@@ -84,6 +84,7 @@ class ChainSimulation(DatabaseTensors):
         self,
         state: StateTensors,
         neighbours_state: StateTensors,
+        all_ingredients: torch.Tensor,
         step: int
     ) -> torch.Tensor:
         """Compute adjusted probability of using each ingredient.
@@ -91,13 +92,6 @@ class ChainSimulation(DatabaseTensors):
         Given a current state, the neighbour states are the results
         from adding an ingredient to the product.
         """
-        # Generate all possible ingredients tensor.
-        all_ingredients = torch.arange(
-            self.n_ingredients
-        ).unsqueeze(1).expand(-1, self.batch_size).reshape((
-            self.batch_size * self.n_ingredients
-        ))
-
         # Copy current state tensors
         ingredients_count, active_effects = state.get_tensors()
 
@@ -183,6 +177,13 @@ class ChainSimulation(DatabaseTensors):
             torch_device=self.device
         )
 
+        # Generate all possible ingredients tensor.
+        all_ingredients = torch.arange(
+            self.n_ingredients
+        ).unsqueeze(1).expand(-1, self.batch_size).reshape((
+            self.batch_size * self.n_ingredients
+        ))
+
         with torch.no_grad():
             for s in range(num_simulations):
                 state = StateTensors(
@@ -197,6 +198,7 @@ class ChainSimulation(DatabaseTensors):
                     ingredients_probs = self.compute_ingredient_prob(
                         state,
                         neighbours_state,
+                        all_ingredients,
                         t
                     )
                     ingredients = torch.multinomial(
