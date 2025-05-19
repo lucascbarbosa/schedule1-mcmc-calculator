@@ -157,17 +157,17 @@ class ChainSimulation(DatabaseTensors):
 
         # Output tensors
         recipes = torch.zeros(
-            num_steps, num_simulations * batch_size, dtype=torch.long,
+            num_steps, num_simulations * batch_size, dtype=torch.float32,
             device=self.device)
         effects = torch.zeros(
             num_steps, num_simulations * batch_size, self.n_effects,
-            dtype=torch.long, device=self.device
+            dtype=torch.float32, device=self.device
         )
         costs = torch.zeros(
-            num_steps, num_simulations * batch_size, dtype=torch.long,
+            num_steps, num_simulations * batch_size, dtype=torch.float32,
             device=self.device)
         values = torch.zeros(
-            num_steps, num_simulations * batch_size, dtype=torch.long,
+            num_steps, num_simulations * batch_size, dtype=torch.float32,
             device=self.device)
 
         # Define neighbours state
