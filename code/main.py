@@ -3,9 +3,9 @@ from plots import visualize_ingredients_choice, visualize_profits
 from simulate import ChainSimulation
 
 # Optimize recipes
-chain = ChainSimulation(torch_device="cpu")
+chain = ChainSimulation(torch_device="cuda")
 results_data, results_opt = chain.optimize_recipe(
-    "OG Kush", num_simulations=1, batch_size=1_000, num_steps=10, T0=10.0)
+    "OG Kush", num_simulations=20, batch_size=50_000, num_steps=10, T0=10.0)
 print(
 f"""
 OTIMIZADO:

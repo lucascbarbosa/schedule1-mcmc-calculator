@@ -224,35 +224,33 @@ class StateTensors(DatabaseTensors):
         ingredients: torch.Tensor,
     ) -> torch.Tensor:
         """Apply effects transition rules for each ingredient."""
-        # Apply rules for the current ingredients
+        # Save current active effects
         active_effects = self.active_effects.clone()
+        # shape: (n_effects, batch_size)
+
+        # Fetch rules from each added ingredient
         rules_batch = self.rules[ingredients]
+        # shape: (batch_size, n_effects, n_effects)
+
+        # Mask of any non 0 path per (batch, effect)
+        rules_path_sum = rules_batch.sum(dim=2)
+        path_mask = rules_path_sum.T.bool()
+        # shape: (n_effects, batch_size)
+
+        # Compute rules
         effects_result = torch.bmm(
             rules_batch,
             active_effects.T.unsqueeze(2)
-        ).squeeze(2).T
+        ).squeeze(2).T  # shape: (n_effects, batch_size)
 
-        # Clamp duplicated effects to 1.0
-        duplicated = effects_result == 2.0
-        effects_result[duplicated] = 1.0
+        # Combine:
+        # - any effect activated by the rules applied
+        # - OR any effect that was already on AND hast least one path
+        effects_result = (effects_result > 0) | (
+            active_effects.bool() & path_mask
+        )
 
-        # Restore wrongly deactivated effects
-        for i in range(ingredients.shape[0]):
-            duplicated_ids = torch.nonzero(
-                duplicated[:, i], as_tuple=False).flatten()
-            for target_id in duplicated_ids:
-                source_ids = torch.nonzero(
-                    rules_batch[i, target_id, :] == 1.0,
-                    as_tuple=False
-                ).flatten()
-                for source_id in source_ids:
-                    if (
-                        active_effects[source_id, i] == 1.0 and
-                        effects_result[source_id, i] == 0.0
-                    ):
-                        effects_result[source_id, i] = 1.0
-
-        self.active_effects = effects_result
+        self.active_effects = effects_result.float()
 
     def mix_ingredient(self, ingredients: torch.Tensor):
         """Mix products with ingredients."""
