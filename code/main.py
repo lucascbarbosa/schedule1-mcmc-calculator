@@ -33,7 +33,7 @@ chain = ChainSimulation(torch_device)
 # """
 # )
 results_data, results_opt = chain.optimize_recipe(
-    "OG Kush", num_simulations=1, batch_size=2, num_steps=10, T0=10.0)
+    "OG Kush", num_simulations=50, batch_size=20_000, num_steps=10, T0=10.0)
 print(
 f"""
 OTIMIZADO:
