@@ -232,25 +232,34 @@ class StateTensors(DatabaseTensors):
         rules_batch = self.rules[ingredients]
         # shape: (batch_size, n_effects, n_effects)
 
-        # Mask of any non 0 path per (batch, effect)
-        rules_path_sum = rules_batch.sum(dim=2)
-        path_mask = rules_path_sum.T.bool()
-        # shape: (n_effects, batch_size)
-
         # Compute rules
         effects_result = torch.bmm(
             rules_batch,
             active_effects.T.unsqueeze(2)
         ).squeeze(2).T  # shape: (n_effects, batch_size)
 
-        # Combine:
-        # - any effect activated by the rules applied
-        # - OR any effect that was already on AND hast least one path
-        effects_result = (effects_result > 0) | (
-            active_effects.bool() & path_mask
-        )
+        # Detect all duplicates effects (> 1.0) and clamp them back to 1.0
+        duplicated_mask = effects_result > 1.0
+        effects_result = effects_result.clamp_max(1.0)
+        # Restore wrongly deactivated effects
+        if duplicated_mask.any():
+            # Get duplicated effects
+            effect_ids, ingredient_ids = duplicated_mask.nonzero(as_tuple=True)
+            active_sources = (
+                rules_batch.bool() & active_effects.T.unsqueeze(2).bool()
+            ).float()
+            active_sources -= torch.eye(
+                self.n_effects, device=self.device
+            ).repeat(effects_result.shape[1], 1, 1).reshape(
+                (effects_result.shape[1], self.n_effects, self.n_effects)
+            )
+            source_effect_ids = torch.argmax(active_sources.int(), dim=2)
+            effects_result[
+                source_effect_ids[ingredient_ids, effect_ids],
+                ingredient_ids
+            ] = 1.0
 
-        self.active_effects = effects_result.float()
+        self.active_effects = effects_result
 
     def mix_ingredient(self, ingredients: torch.Tensor):
         """Mix products with ingredients."""

@@ -250,7 +250,7 @@ class ChainSimulation(DatabaseTensors):
     def mix_recipe(
         self,
         base_product: str,
-        recipe: List[str]
+        recipe: List[str],
     ) -> Tuple[List[str], float, float, float]:
         """Create a mix given a recipe.
 
@@ -270,7 +270,7 @@ class ChainSimulation(DatabaseTensors):
         state = StateTensors(
             base_product=base_product,
             batch_size=1,
-            torch_device=self.torch_device
+            torch_device=self.device,
         )
 
         # Encode ingredients in recipe
