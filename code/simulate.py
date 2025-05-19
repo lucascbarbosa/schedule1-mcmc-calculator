@@ -11,19 +11,43 @@ class ChainSimulation(DatabaseTensors):
         # Instantiate DatabaseTensors
         super().__init__(torch_device=torch_device)
 
-    def decode_effects(self, effects: torch.Tensor):
-        """Convert effects from id to name."""
-        effects_id = torch.where(effects == 1)[0]
-        return self.effects_df[
-            self.effects_df["effect_id"].isin(effects_id.tolist())
-        ]["effect_name"].tolist()
+    def _encode_recipe(self, recipe: List[str]) -> torch.Tensor:
+        """Convert from ingredients name to id."""
+        name_to_id = self.ingredients_df.set_index(
+            "ingredient_name")["ingredient_id"].to_dict()
+        recipe_encoded = []
+        for n in recipe:
+            if n in name_to_id:
+                recipe_encoded.append(name_to_id[n])
+            else:
+                raise ValueError(f"Ingredient name {n} is incorrect!")
+        return torch.tensor(recipe_encoded).reshape((len(recipe), 1))
 
-    def decode_recipe(self, recipe: torch.Tensor):
-        """Convert ingredients from id to name."""
+    def _encode_effects(self, effects: List[str]) -> torch.Tensor:
+        """Convert from effects name to id."""
+        name_to_id = self.effects_df.set_index(
+            "effect_name")["effect_id"].to_dict()
+        effects_encoded = []
+        for n in effects:
+            if n in name_to_id:
+                effects_encoded.append(name_to_id[n])
+            else:
+                raise ValueError(f"Effect name {n} is incorrect!")
+        return torch.tensor(effects_encoded).reshape((len(effects), 1))
+
+    def _decode_recipe(self, recipe: torch.Tensor):
+        """Convert from ingredients id to name."""
         id_list = recipe.tolist()
         id_to_name = self.ingredients_df.set_index(
             "ingredient_id")["ingredient_name"].to_dict()
         return [id_to_name[i] for i in id_list]
+
+    def _decode_effects(self, effects: torch.Tensor):
+        """Convert from effects id to name."""
+        effects_id = torch.where(effects == 1)[0]
+        return self.effects_df[
+            self.effects_df["effect_id"].isin(effects_id.tolist())
+        ]["effect_name"].tolist()
 
     def _boltzmann_temperature(self, step: int):
         """Calculate temperature parameter of Boltzmann distribution."""
@@ -62,10 +86,6 @@ class ChainSimulation(DatabaseTensors):
         Given a current state, the neighbour states are the results
         from adding an ingredient to the product.
         """
-        # The number of neighbours is equal to the number of ingredients,
-        # since the ingredient is the edge that induces the state transition.
-        n_neighbours = self.n_ingredients
-
         # Generate all possible ingredients tensor.
         all_ingredients = torch.arange(
             self.n_ingredients
@@ -93,6 +113,8 @@ class ChainSimulation(DatabaseTensors):
         neighbours_state.mix_ingredient(
             ingredients=all_ingredients
         )
+
+        # Get neighbours acceptance
         neighbours_acceptance = self._neighbours_acceptance(
             current_state=state,
             neighbours_state=neighbours_state,
@@ -183,8 +205,8 @@ class ChainSimulation(DatabaseTensors):
         # Fetch optimal recipe
         id_opt = torch.where(profits == profits.max())
         opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
-        recipe_opt = self.decode_recipe(recipes[:opt_step + 1, opt_sim])
-        effects_opt = self.decode_effects(effects[opt_step, opt_sim, :])
+        recipe_opt = self._decode_recipe(recipes[:opt_step + 1, opt_sim])
+        effects_opt = self._decode_effects(effects[opt_step, opt_sim, :])
         cost_opt = float(costs[opt_step, opt_sim])
         value_opt = float(values[opt_step, opt_sim])
         profit_opt = float(profits[opt_step, opt_sim])
@@ -223,18 +245,6 @@ class ChainSimulation(DatabaseTensors):
         Raises:
             ValueError: if ingredient name in recipe is incorrect.
         """
-        def encode_recipe(recipe: List[str]) -> torch.Tensor:
-            """Convert ingredient names to ids."""
-            name_to_id = self.ingredients_df.set_index(
-                "ingredient_name")["ingredient_id"].to_dict()
-            recipe_encoded = []
-            for n in recipe:
-                if n in name_to_id:
-                    recipe_encoded.append(name_to_id[n])
-                else:
-                    raise ValueError(f"Ingredient name {n} is incorrect!")
-            return torch.tensor(recipe_encoded).reshape((len(recipe), 1))
-
         self.batch_size = 1
         # Set base state
         state = StateTensors(
@@ -244,13 +254,13 @@ class ChainSimulation(DatabaseTensors):
         )
 
         # Encode ingredients in recipe
-        recipe = encode_recipe(recipe)
+        recipe = self._encode_recipe(recipe)
         for i in range(recipe.shape[0]):
             ingredient = recipe[i]
             # Mix ingredients to state
             state.mix_ingredient(ingredients=ingredient)
 
-        effects = self.decode_effects(state.active_effects[:, 0])
+        effects = self._decode_effects(state.active_effects[:, 0])
         cost = float(state.cost())
         value = float(state.value())
         profit = value - cost

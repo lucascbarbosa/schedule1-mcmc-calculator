@@ -5,7 +5,7 @@ from simulate import ChainSimulation
 
 # Optimize recipes
 start_time = time.time()
-chain = ChainSimulation(torch_device="cuda")
+chain = ChainSimulation(torch_device="cpu")
 results_data, results_opt = chain.optimize_recipe(
     "OG Kush", num_simulations=1, batch_size=1_000, num_steps=10, T0=10.0)
 end_time = time.time()
