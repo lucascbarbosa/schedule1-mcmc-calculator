@@ -80,8 +80,10 @@ class ChainSimulation(DatabaseTensors):
 
         elif self.objective_function == 'effects':
             desired_effects = self._encode_effects(
-                ['Tropic-Thunder', 'Anti-Gravity', 'Zombifying', 'Jennerising',
-                 'Glowing', 'Cyclopean', 'Bright-Eyed', 'Thought-Provoking']
+                [
+                    'Anti-Gravity', 'Cyclopean', 'Electrifying', 'Glowing',
+                    'Long-Faced', 'Shrinking', 'Tropic-Thunder', 'Zombifying'
+                ]
             )
             current_obj = current_state.effects_distance(
                 desired_effects=desired_effects)
@@ -242,7 +244,7 @@ class ChainSimulation(DatabaseTensors):
                         t, s * batch_size:(s + 1) * batch_size] = state.value()
                     print(f"TET: {round(time.time() - start_time, 2)}s")
 
-        # Calculates profits
+        # Calculates objective
         profits = values - costs
 
         # Fetch optimal recipe

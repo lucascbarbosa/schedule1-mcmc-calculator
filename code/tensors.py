@@ -190,7 +190,7 @@ class StateTensors(DatabaseTensors):
     def effects_distance(self, desired_effects: torch.Tensor) -> float:
         """Distance from active and desired effects."""
         return (
-            torch.sum((self.active_effects - desired_effects)**2, dim=0)
+            -torch.sum((self.active_effects - desired_effects)**2, dim=0)
         )
 
     def increment_ingredient_count(
