@@ -7,7 +7,7 @@ from typing import Tuple
 
 class DatabaseTensors:
     """Class to create tensors from dataframes."""
-    def __init__(self):
+    def __init__(self, torch_device: str):
         """Convert ingredients, effects and products names to id."""
         # Load data
         current_dir = Path(__file__).parent
@@ -59,8 +59,8 @@ class DatabaseTensors:
             "effect_result"].map(effect_to_id)
         self.rules_df = rules_df
 
-        self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+        # Set torch device
+        self.device = torch_device
 
         # Fetch ingredients arrays
         self.create_ingredients_tensors()
@@ -124,19 +124,21 @@ class StateTensors(DatabaseTensors):
         self,
         base_product: str,
         batch_size: int,
+        torch_device: str,
     ):
         """Create initial ingredients and effects tensors.
 
         Args:
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
-            device (torch.device): Torch device (cpu or cuda).
+            torch_device (torch.device): Torch device (cpu or cuda).
 
         Raises:
             ValueError: If chosen based product.
         """
-        # Instantiate DatabaseTensors
-        super().__init__()
+        # Define global variables
+        super().__init__(torch_device=torch_device)
+        self.batch_size = batch_size
 
         # Get base product cost, value and effect
         base_product = self.products_df[
@@ -189,6 +191,10 @@ class StateTensors(DatabaseTensors):
         """Calculates sell value of current state."""
         mult = self.effects_multiplier @ self.active_effects
         return (1 + mult) * float(self.product_value)
+
+    def profit(self) -> float:
+        """Calculates profit of current state."""
+        return self.value() - self.cost()
 
     def increment_ingredient_count(
         self,

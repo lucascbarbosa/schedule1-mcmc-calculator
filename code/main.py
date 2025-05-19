@@ -1,14 +1,17 @@
 """Main script."""
+import time
 from plots import visualize_ingredients_choice, visualize_profits
 from simulate import ChainSimulation
 
-
 # Optimize recipes
-chain = ChainSimulation()
+start_time = time.time()
+chain = ChainSimulation(torch_device="cuda")
 results_data, results_opt = chain.optimize_recipe(
-    "OG Kush", batch_size=100, num_steps=8, T0=1.0)
+    "OG Kush", num_simulations=1, batch_size=1_000, num_steps=10, T0=10.0)
+end_time = time.time()
 print(
 f"""
+Tempo: {end_time - start_time}
 OTIMIZADO:
 Receita: {results_opt["recipe"]}
 Efeitos: {results_opt["effects"]}
@@ -18,10 +21,10 @@ Profit: {results_opt["profit"]}
 """
 )
 
-# Plot simulation graphs
-visualize_ingredients_choice(
-    results_data['recipes'],
-    n_ingredients=chain.n_ingredients
-)
+# # Plot simulation graphs
+# visualize_ingredients_choice(
+#     results_data['recipes'],
+#     n_ingredients=chain.n_ingredients
+# )
 
-visualize_profits(profits=results_data['profits'])
+# visualize_profits(profits=results_data['profits'])
