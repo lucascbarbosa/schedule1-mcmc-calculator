@@ -81,7 +81,11 @@ class ChainSimulation(DatabaseTensors):
         return acceps
 
     def compute_ingredient_prob(
-        self, state: StateTensors, step: int) -> torch.Tensor:
+        self,
+        state: StateTensors,
+        neighbours_state: StateTensors,
+        step: int
+    ) -> torch.Tensor:
         """Compute adjusted probability of using each ingredient.
 
         Given a current state, the neighbour states are the results
@@ -102,9 +106,6 @@ class ChainSimulation(DatabaseTensors):
             1, self.n_ingredients)
         neighbours_active_effects = active_effects.repeat(
             1, self.n_ingredients)
-        neighbours_state = StateTensors(
-            self.base_product, self.batch_size, torch_device=self.device
-        )
         neighbours_state.set_tensors(
             neighbours_ingredients_count,
             neighbours_active_effects
@@ -173,34 +174,46 @@ class ChainSimulation(DatabaseTensors):
             num_steps, num_simulations * batch_size, dtype=torch.long,
             device=self.device)
 
-        for s in range(num_simulations):
-            state = StateTensors(
-                base_product=base_product,
-                batch_size=batch_size,
-                torch_device=self.device
-            )
-            for t in range(num_steps):
-                start_time = time.time()
-                print(f"Batch simulation {s + 1}: Step {t + 1}")
-                # Ingredients choice probability (n_ingredients x batch_size)
-                ingredients_probs = self.compute_ingredient_prob(state, t)
-                ingredients = torch.multinomial(
-                    ingredients_probs.T, num_samples=1).squeeze(1)
+        # Define neighbours state
+        neighbours_state = StateTensors(
+            self.base_product,
+            self.batch_size,
+            torch_device=self.device
+        )
 
-                # Mix ingredients to state
-                state.mix_ingredient(ingredients=ingredients)
+        with torch.no_grad():
+            for s in range(num_simulations):
+                state = StateTensors(
+                    base_product=base_product,
+                    batch_size=batch_size,
+                    torch_device=self.device
+                )
+                for t in range(num_steps):
+                    start_time = time.time()
+                    print(f"Batch simulation {s + 1}: Step {t + 1}")
+                    # Ingredients choice probability (n_ingredients x batch_size)
+                    ingredients_probs = self.compute_ingredient_prob(
+                        state,
+                        neighbours_state,
+                        t
+                    )
+                    ingredients = torch.multinomial(
+                        ingredients_probs.T, num_samples=1).squeeze(1)
 
-                # Store ingredient in recipe
-                recipes[
-                    t, s * batch_size:(s + 1) * batch_size] = ingredients
-                effects[
-                    t, s * batch_size:(s + 1) * batch_size, :
-                ] = state.active_effects.T
-                costs[
-                    t, s * batch_size:(s + 1) * batch_size] = state.cost()
-                values[
-                    t, s * batch_size:(s + 1) * batch_size] = state.value()
-                print(f"TET: {round(time.time() - start_time, 2)}")
+                    # Mix ingredients to state
+                    state.mix_ingredient(ingredients=ingredients)
+
+                    # Store ingredient in recipe
+                    recipes[
+                        t, s * batch_size:(s + 1) * batch_size] = ingredients
+                    effects[
+                        t, s * batch_size:(s + 1) * batch_size, :
+                    ] = state.active_effects.T
+                    costs[
+                        t, s * batch_size:(s + 1) * batch_size] = state.cost()
+                    values[
+                        t, s * batch_size:(s + 1) * batch_size] = state.value()
+                    print(f"TET: {round(time.time() - start_time, 2)}")
 
         # Calculates profits
         profits = values - costs
