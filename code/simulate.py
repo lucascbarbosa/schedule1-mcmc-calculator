@@ -58,6 +58,7 @@ class ChainSimulation(DatabaseTensors):
     def _neighbours_acceptance(
         self,
         current_state: StateTensors,
+        previous_state: StateTensors,
         neighbours_state: StateTensors,
         step: int,
     ) -> torch.Tensor:
@@ -77,6 +78,8 @@ class ChainSimulation(DatabaseTensors):
             neighbours_obj = neighbours_state.profit().reshape((
                 self.n_ingredients, self.batch_size
             ))
+            previous_obj = previous_state.profit()
+            neighbours_obj = torch.cat([neighbours_obj, previous_obj])
 
         elif self.objective_function == 'effects':
             desired_effects = self._encode_effects(
@@ -91,11 +94,13 @@ class ChainSimulation(DatabaseTensors):
                 desired_effects=desired_effects).reshape(
                     (self.n_ingredients, self.batch_size)
                 )
+            previous_obj = previous_state.effects_distance()
 
         else:
             raise ValueError(
                 f"Objective function {self.objective_function} not available!"
             )
+
         acceps = torch.clamp(
             torch.exp((neighbours_obj - current_obj) / T), max=1.0
         )
@@ -103,7 +108,8 @@ class ChainSimulation(DatabaseTensors):
 
     def compute_ingredient_prob(
         self,
-        state: StateTensors,
+        current_state: StateTensors,
+        previous_state: StateTensors,
         neighbours_state: StateTensors,
         all_ingredients: torch.Tensor,
         step: int
@@ -114,18 +120,14 @@ class ChainSimulation(DatabaseTensors):
         from adding an ingredient to the product.
         """
         # Copy current state tensors
-        ingredients_count, active_effects = state.get_current_tensors()
+        ingredients_count, active_effects = current_state.get_tensors()
 
         # Set neighbours state tensors
         neighbours_state.ingredients_count.copy_(
-            ingredients_count.repeat(
-                1, self.n_ingredients
-            )
+            ingredients_count.repeat(1, self.n_ingredients)
         )
         neighbours_state.active_effects.copy_(
-            active_effects.repeat(
-                1, self.n_ingredients
-            )
+            active_effects.repeat(1, self.n_ingredients)
         )
 
         # Mix ingredient
@@ -135,7 +137,8 @@ class ChainSimulation(DatabaseTensors):
 
         # Get neighbours acceptance
         neighbours_acceptance = self._neighbours_acceptance(
-            current_state=state,
+            current_state=current_state,
+            previous_state=previous_state,
             neighbours_state=neighbours_state,
             step=step
         )
@@ -202,6 +205,13 @@ class ChainSimulation(DatabaseTensors):
             torch_device=self.device
         )
 
+        # Define previous state
+        previous_state = StateTensors(
+            self.base_product,
+            self.batch_size,
+            torch_device=self.device
+        )
+
         # Generate all possible ingredients tensor.
         all_ingredients = torch.arange(
             self.n_ingredients, device=self.device
@@ -211,7 +221,7 @@ class ChainSimulation(DatabaseTensors):
 
         with torch.no_grad():
             for s in range(num_simulations):
-                state = StateTensors(
+                current_state = StateTensors(
                     base_product=base_product,
                     batch_size=batch_size,
                     torch_device=self.device
@@ -221,27 +231,39 @@ class ChainSimulation(DatabaseTensors):
                     print(f"Batch simulation {s + 1}: Step {t + 1}")
                     # Ingredients choice probability (n_ingredients x batch_size)
                     ingredients_probs = self.compute_ingredient_prob(
-                        state,
+                        current_state,
+                        previous_state,
                         neighbours_state,
                         all_ingredients,
                         t
                     )
                     ingredients = torch.multinomial(
                         ingredients_probs.T, num_samples=1).squeeze(1)
+                    print(ingredients)
+
+                    # Set previous state tensors
+                    ingredients_count, active_effects = current_state.\
+                        get_tensors()
+                    previous_state.ingredients_count.copy_(ingredients_count)
+                    previous_state.active_effects.copy_(active_effects)
 
                     # Mix ingredients to state
-                    state.mix_ingredient(ingredients=ingredients)
+                    current_state.mix_ingredient(ingredients=ingredients)
+
+                    print(current_state.ingredients_count)
 
                     # Store ingredient in recipe
                     recipes[
                         t, s * batch_size:(s + 1) * batch_size] = ingredients
                     effects[
                         t, s * batch_size:(s + 1) * batch_size, :
-                    ] = state.active_effects.T
+                    ] = current_state.active_effects.T
                     costs[
-                        t, s * batch_size:(s + 1) * batch_size] = state.cost()
+                        t, s * batch_size:(s + 1) * batch_size
+                    ] = current_state.cost()
                     values[
-                        t, s * batch_size:(s + 1) * batch_size] = state.value()
+                        t, s * batch_size:(s + 1) * batch_size
+                    ] = current_state.value()
                     print(f"TET: {round(time.time() - start_time, 2)}s")
 
         # Calculates objective

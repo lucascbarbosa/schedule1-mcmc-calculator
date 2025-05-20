@@ -35,7 +35,6 @@ class DatabaseTensors:
         ingredients_df = ingredients_df.rename(
             columns={"name": "ingredient_name", "effect": "effect_name"})
         self.ingredients_df = ingredients_df
-        # Add 'remove' ingredient
         self.n_ingredients = len(ingredients_df)
 
         # Effects
@@ -156,7 +155,6 @@ class StateTensors(DatabaseTensors):
             dtype=torch.float32,
             device=self.device
         )
-        self.past_ingredients_count = self.ingredients_count.clone()
 
         # Create a sparse binary effects array.
         # Earch element of the array indicates if effect is present.
@@ -169,18 +167,10 @@ class StateTensors(DatabaseTensors):
             self.effects_df["effect_name"] ==
             base_product["effect_name"].iloc[0], :
         ] = 1
-        self.past_active_effects = self.active_effects.clone()
 
-    def get_current_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get current ingredients and effects tensors."""
         return self.ingredients_count.clone(), self.active_effects.clone()
-
-    def get_past_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get past ingredients and effects tensors."""
-        return (
-            self.past_ingredients_count.clone(),
-            self.past_active_effects.clone()
-        )
 
     def cost(self) -> float:
         """Calculates the cost of current state."""
@@ -282,6 +272,12 @@ class StateTensors(DatabaseTensors):
 
     def mix_ingredient(self, ingredients: torch.Tensor):
         """Mix products with ingredients."""
+        # Copy past state tensors
+        ingredients_count, active_effects = self.get_tensors()
+        remove_mask = ingredients == self.n_ingredients
+        remove_ids = remove_mask.nonzero(as_tuple=True)[0]
+        ingredients[remove_ids] = 0
+
         #  Increment ingredient count
         self.increment_ingredient_count(
             ingredients=ingredients
@@ -296,3 +292,6 @@ class StateTensors(DatabaseTensors):
         self.apply_ingredients_effect(
             ingredients=ingredients
         )
+
+        self.active_effects[:, remove_ids] = active_effects[:, remove_ids]
+        self.ingredients_count[:, remove_ids] = ingredients_count[:, remove_ids]
