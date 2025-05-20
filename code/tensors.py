@@ -21,7 +21,7 @@ class DatabaseTensors:
             current_dir.parent / "data/products.json")
 
         ingredient_to_id = ingredients_df.reset_index().set_index(
-            "name")["index"] + 1
+            "name")["index"]
         effect_to_id = effects_df.reset_index().set_index(
             "name")["index"]
         product_to_id = products_df.reset_index().set_index(
@@ -36,7 +36,7 @@ class DatabaseTensors:
             columns={"name": "ingredient_name", "effect": "effect_name"})
         self.ingredients_df = ingredients_df
         # Add 'remove' ingredient
-        self.n_ingredients = len(ingredients_df) + 1
+        self.n_ingredients = len(ingredients_df)
 
         # Effects
         effects_df["effect_id"] = effects_df["name"].map(effect_to_id)
