@@ -210,19 +210,12 @@ class StateTensors(DatabaseTensors):
         """Add mixed ingredient to the count."""
         # Clone tensors
         ingredients_count = self.ingredients_count.clone()
-        past_ingredients_count = self.past_ingredients_count.clone()
 
         # Increment ingredients count
         ingredients_count[
             ingredients,
             torch.arange(ingredients.shape[0])
         ] += 1.0
-        ingredient_mask = ingredients != 0
-        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
-        ingredients_count[
-            :, to_add_ids] = ingredients_count[:, to_add_ids]
-        ingredients_count[
-            :, ~to_add_ids] = past_ingredients_count[:, ~to_add_ids]
         self.ingredients_count = ingredients_count
 
     def apply_ingredients_effect(
@@ -232,7 +225,6 @@ class StateTensors(DatabaseTensors):
         """Apply effect from added ingredients."""
         # Clone tensors
         active_effects = self.active_effects.clone()
-        past_active_effects = self.past_active_effects.clone()
 
         # Check if sum of effects is leq 8
         sum_effects = active_effects.sum(dim=0)
@@ -243,12 +235,6 @@ class StateTensors(DatabaseTensors):
         filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
         filtered_effect_ids = effect_ids[sum_mask]
         active_effects[filtered_effect_ids.to(int), filtered_batch_ids] = 1
-
-        # Apply ingredient effects only if sum of effects is leq 8
-        ingredient_mask = ingredients != 0
-        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
-        active_effects = active_effects[:, to_add_ids]
-        active_effects = past_active_effects[:, ~to_add_ids]
         self.active_effects = active_effects
 
     def apply_effects_rules(
@@ -258,7 +244,6 @@ class StateTensors(DatabaseTensors):
         """Apply effects transition rules for each ingredient."""
         # Clone current and past effects
         active_effects = self.active_effects.clone()
-        past_active_effects = self.past_active_effects.clone()
         # shape: (n_effects, batch_size)
 
         # Fetch rules from each added ingredient
@@ -293,11 +278,6 @@ class StateTensors(DatabaseTensors):
                 ingredient_ids
             ] = 1.0
 
-        # Apply ingredient effects only if sum of effects is leq 8
-        ingredient_mask = ingredients != 0
-        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
-        active_effects = effects_result[:, to_add_ids]
-        active_effects = past_active_effects[:, ~to_add_ids]
         self.active_effects = active_effects
 
     def mix_ingredient(self, ingredients: torch.Tensor):
