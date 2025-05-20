@@ -21,7 +21,7 @@ class DatabaseTensors:
             current_dir.parent / "data/products.json")
 
         ingredient_to_id = ingredients_df.reset_index().set_index(
-            "name")["index"]
+            "name")["index"] + 1
         effect_to_id = effects_df.reset_index().set_index(
             "name")["index"]
         product_to_id = products_df.reset_index().set_index(
@@ -35,7 +35,8 @@ class DatabaseTensors:
         ingredients_df = ingredients_df.rename(
             columns={"name": "ingredient_name", "effect": "effect_name"})
         self.ingredients_df = ingredients_df
-        self.n_ingredients = len(ingredients_df)
+        # Add 'remove' ingredient
+        self.n_ingredients = len(ingredients_df) + 1
 
         # Effects
         effects_df["effect_id"] = effects_df["name"].map(effect_to_id)
@@ -155,6 +156,7 @@ class StateTensors(DatabaseTensors):
             dtype=torch.float32,
             device=self.device
         )
+        self.past_ingredients_count = self.ingredients_count.clone()
 
         # Create a sparse binary effects array.
         # Earch element of the array indicates if effect is present.
@@ -167,10 +169,18 @@ class StateTensors(DatabaseTensors):
             self.effects_df["effect_name"] ==
             base_product["effect_name"].iloc[0], :
         ] = 1
+        self.past_active_effects = self.active_effects.clone()
 
-    def get_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get ingredients and effects tensors."""
+    def get_current_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get current ingredients and effects tensors."""
         return self.ingredients_count.clone(), self.active_effects.clone()
+
+    def get_past_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get past ingredients and effects tensors."""
+        return (
+            self.past_ingredients_count.clone(),
+            self.past_active_effects.clone()
+        )
 
     def cost(self) -> float:
         """Calculates the cost of current state."""
@@ -198,11 +208,21 @@ class StateTensors(DatabaseTensors):
         ingredients: torch.Tensor,
     ) -> torch.Tensor:
         """Add mixed ingredient to the count."""
+        # Clone tensors
         ingredients_count = self.ingredients_count.clone()
+        past_ingredients_count = self.past_ingredients_count.clone()
+
+        # Increment ingredients count
         ingredients_count[
             ingredients,
             torch.arange(ingredients.shape[0])
         ] += 1.0
+        ingredient_mask = ingredients != 0
+        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
+        ingredients_count[
+            :, to_add_ids] = ingredients_count[:, to_add_ids]
+        ingredients_count[
+            :, ~to_add_ids] = past_ingredients_count[:, ~to_add_ids]
         self.ingredients_count = ingredients_count
 
     def apply_ingredients_effect(
@@ -210,15 +230,25 @@ class StateTensors(DatabaseTensors):
         ingredients: torch.Tensor,
     ) -> torch.Tensor:
         """Apply effect from added ingredients."""
+        # Clone tensors
         active_effects = self.active_effects.clone()
+        past_active_effects = self.past_active_effects.clone()
+
         # Check if sum of effects is leq 8
         sum_effects = active_effects.sum(dim=0)
         sum_mask = sum_effects < 8
+
         # Apply ingredient effects only if sum of effects is leq 8
         effect_ids = self.ingredients_effect[0, ingredients]
         filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
         filtered_effect_ids = effect_ids[sum_mask]
         active_effects[filtered_effect_ids.to(int), filtered_batch_ids] = 1
+
+        # Apply ingredient effects only if sum of effects is leq 8
+        ingredient_mask = ingredients != 0
+        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
+        active_effects = active_effects[:, to_add_ids]
+        active_effects = past_active_effects[:, ~to_add_ids]
         self.active_effects = active_effects
 
     def apply_effects_rules(
@@ -226,8 +256,9 @@ class StateTensors(DatabaseTensors):
         ingredients: torch.Tensor,
     ) -> torch.Tensor:
         """Apply effects transition rules for each ingredient."""
-        # Save current active effects
+        # Clone current and past effects
         active_effects = self.active_effects.clone()
+        past_active_effects = self.past_active_effects.clone()
         # shape: (n_effects, batch_size)
 
         # Fetch rules from each added ingredient
@@ -243,6 +274,7 @@ class StateTensors(DatabaseTensors):
         # Detect all duplicates effects (> 1.0) and clamp them back to 1.0
         duplicated_mask = effects_result > 1.0
         effects_result = effects_result.clamp_max(1.0)
+
         # Restore wrongly deactivated effects
         if duplicated_mask.any():
             # Get duplicated effects
@@ -261,7 +293,12 @@ class StateTensors(DatabaseTensors):
                 ingredient_ids
             ] = 1.0
 
-        self.active_effects = effects_result
+        # Apply ingredient effects only if sum of effects is leq 8
+        ingredient_mask = ingredients != 0
+        to_add_ids = ingredient_mask.nonzero(as_tuple=True)[0]
+        active_effects = effects_result[:, to_add_ids]
+        active_effects = past_active_effects[:, ~to_add_ids]
+        self.active_effects = active_effects
 
     def mix_ingredient(self, ingredients: torch.Tensor):
         """Mix products with ingredients."""
