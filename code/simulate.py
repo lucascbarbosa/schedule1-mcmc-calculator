@@ -114,7 +114,7 @@ class ChainSimulation(DatabaseTensors):
         from adding an ingredient to the product.
         """
         # Copy current state tensors
-        ingredients_count, active_effects = state.get_tensors()
+        ingredients_count, active_effects = state.get_current_tensors()
 
         # Set neighbours state tensors
         neighbours_state.ingredients_count.copy_(
