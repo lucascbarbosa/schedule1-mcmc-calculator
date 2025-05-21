@@ -5,7 +5,7 @@ from simulate import ChainSimulation
 # Optimize recipes
 torch_device = "cuda"
 chain = ChainSimulation(torch_device)
-recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
+# recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
 # recipe = [
 #     'Cuke',
 #     'Energy Drink',
@@ -21,6 +21,7 @@ recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
 #     'Iodine',
 #     'Donut',
 #     'Battery'
+#     'Remove'
 # ]
 # recipe = ['Iodine', 'Flu Medicine', 'Horse S*men', 'Mouth Wash', 'Banana', 'Horse S*men', 'Iodine', 'Banana']
 # result = chain.mix_recipe("OG Kush", recipe)
@@ -32,12 +33,13 @@ recipe = ['Horse S*men', 'Motor Oil', 'Paracetamol']
 # Valor: {result['value']}
 # """
 # )
+
 results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
     num_simulations=1,
-    batch_size=5,
-    num_steps=10,
+    batch_size=10,
+    num_steps=3,
     T0=5.0
 )
 print(

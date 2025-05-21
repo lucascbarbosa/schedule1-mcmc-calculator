@@ -125,6 +125,7 @@ class StateTensors(DatabaseTensors):
         base_product: str,
         batch_size: int,
         torch_device: str,
+        num_steps: int,
     ):
         """Create initial ingredients and effects tensors.
 
@@ -132,13 +133,13 @@ class StateTensors(DatabaseTensors):
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
             torch_device (torch.device): Torch device (cpu or cuda).
+            num_steps (int): Number of steps in simulation.
 
         Raises:
             ValueError: If chosen based product.
         """
         # Define global variables
         super().__init__(torch_device=torch_device)
-        self.batch_size = batch_size
 
         # Get base product cost, value and effect
         base_product = self.products_df[
@@ -168,29 +169,83 @@ class StateTensors(DatabaseTensors):
             base_product["effect_name"].iloc[0], :
         ] = 1
 
-    def get_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Path of ingredients count and active effects
+        self.ingredients_count_path = torch.zeros(
+            (num_steps, self.n_ingredients, batch_size),
+            dtype=torch.float32,
+            device=self.device
+        )
+        self.active_effects_path = torch.zeros(
+            (num_steps, self.n_effects, batch_size),
+            dtype=torch.float32,
+            device=self.device
+        )
+
+        # Path length
+        self.path_length = torch.zeros(
+            batch_size,
+            dtype=torch.int32,
+            device=self.device
+        )
+
+        # Previous ingredients count and active effects
+        self.previous_ingredients_count = self.ingredients_count.clone()
+        self.previous_active_effects = self.active_effects.clone()
+
+    def get_current_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get current ingredients and effects tensors."""
         return self.ingredients_count.clone(), self.active_effects.clone()
 
-    def cost(self) -> float:
+    def get_previous_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Get previous ingredients and effects tensors."""
+        return (
+            self.previous_ingredients_count.clone(),
+            self.previous_active_effects.clone()
+        )
+
+    def current_cost(self) -> float:
         """Calculates the cost of current state."""
         return (
             self.ingredients_cost @ self.ingredients_count
         )
 
-    def value(self) -> float:
+    def previous_cost(self) -> float:
+        """Calculates the cost of previous state."""
+        return (
+            self.ingredients_cost @ self.previous_ingredients_count
+        )
+
+    def current_value(self) -> float:
         """Calculates sell value of current state."""
         mult = self.effects_multiplier @ self.active_effects
         return (1 + mult) * float(self.product_value)
 
-    def profit(self) -> float:
-        """Calculates profit of current state."""
-        return self.value() - self.cost()
+    def previous_value(self) -> float:
+        """Calculates sell value of previous state."""
+        mult = self.effects_multiplier @ self.previous_active_effects
+        return (1 + mult) * float(self.product_value)
 
-    def effects_distance(self, desired_effects: torch.Tensor) -> float:
-        """Distance from active and desired effects."""
+    def current_profit(self) -> float:
+        """Calculates profit of current state."""
+        return self.current_value() - self.current_cost()
+
+    def previous_profit(self) -> float:
+        """Calculates profit of previous state."""
+        return self.previous_value() - self.previous_cost()
+
+    def current_effects_distance(self, desired_effects: torch.Tensor) -> float:
+        """Distance current state active and desired effects."""
         return (
             -torch.sum((self.active_effects - desired_effects)**2, dim=0)
+        )
+
+    def previous_effects_distance(self, desired_effects: torch.Tensor) -> float:
+        """Distance previous state active and desired effects."""
+        return (
+            -torch.sum(
+                (self.previous_active_effects - desired_effects)**2,
+                dim=0
+            )
         )
 
     def increment_ingredient_count(
@@ -268,30 +323,89 @@ class StateTensors(DatabaseTensors):
                 ingredient_ids
             ] = 1.0
 
-        self.active_effects = active_effects
+        self.active_effects = effects_result
 
     def mix_ingredient(self, ingredients: torch.Tensor):
         """Mix products with ingredients."""
-        # Copy past state tensors
-        ingredients_count, active_effects = self.get_tensors()
-        remove_mask = ingredients == self.n_ingredients
-        remove_ids = remove_mask.nonzero(as_tuple=True)[0]
-        ingredients[remove_ids] = 0
+        ingredients = ingredients.clone()
+
+        # If ingredient has to be removed, set it to 0 (hardcoded)
+        remove_ingredients_mask = (
+            ingredients == self.n_ingredients).to(device=self.device)
+        ingredients[remove_ingredients_mask] = 0
+        # Ids of ingredients to be removed and added
+        removed_ingredients_ids = torch.nonzero(
+            remove_ingredients_mask,
+            as_tuple=False).ravel()
+        added_ingredients_ids = torch.nonzero(
+            ~remove_ingredients_mask,
+            as_tuple=False).ravel()
+
+        # Fetch pre mix state tensors
+        (
+            pre_mix_ingredients_count, pre_mix_active_effects
+        ) = self.get_current_tensors()
 
         #  Increment ingredient count
-        self.increment_ingredient_count(
-            ingredients=ingredients
-        )
+        self.increment_ingredient_count(ingredients)
 
         # Apply effects transition rules
-        self.apply_effects_rules(
-            ingredients=ingredients
-        )
+        self.apply_effects_rules(ingredients)
 
         # Apply ingredient effect
-        self.apply_ingredients_effect(
-            ingredients=ingredients
-        )
+        self.apply_ingredients_effect(ingredients)
 
-        self.active_effects[:, remove_ids] = active_effects[:, remove_ids]
-        self.ingredients_count[:, remove_ids] = ingredients_count[:, remove_ids]
+        # Restore previous state for any ingredients equal to 0
+        if remove_ingredients_mask.any():
+            # Get previous state tensors
+            (
+                previous_ingredients_count, previous_active_effects
+            ) = self.get_previous_tensors()
+
+            # Restore previous ingredients count for removed ingredients
+            self.ingredients_count_path[
+                self.path_length[removed_ingredients_ids],
+                :,
+                removed_ingredients_ids
+            ] = 0.0
+            self.ingredients_count[
+                :,
+                removed_ingredients_ids
+            ] = previous_ingredients_count[:, removed_ingredients_ids]
+
+            # Restore previous active effects for removed ingredients
+            self.active_effects_path[
+                self.path_length[removed_ingredients_ids],
+                :,
+                removed_ingredients_ids
+            ] = 0.0
+            self.active_effects[
+                :,
+                removed_ingredients_ids
+            ] = previous_active_effects[:, removed_ingredients_ids]
+
+        elif ~remove_ingredients_mask.any():
+            # Updated paths
+            self.ingredients_count_path[
+                self.path_length[added_ingredients_ids],
+                :,
+                added_ingredients_ids
+            ] = pre_mix_ingredients_count[
+                :, added_ingredients_ids].T
+
+            self.active_effects_path[
+                self.path_length[added_ingredients_ids],
+                :,
+                added_ingredients_ids
+            ] = pre_mix_active_effects[
+                :, added_ingredients_ids].T
+
+        # Update previous state
+        self.previous_ingredients_count = self.ingredients_count_path[
+            self.path_length, :, torch.arange(self.path_length.shape[0])].T
+
+        self.previous_active_effects = self.active_effects_path[
+            self.path_length, :, torch.arange(self.path_length.shape[0])].T
+
+        # Increment path length
+        self.path_length += 2 * (~remove_ingredients_mask).int() - 1
