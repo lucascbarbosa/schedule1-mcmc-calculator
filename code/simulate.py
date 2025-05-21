@@ -239,9 +239,12 @@ class ChainSimulation(DatabaseTensors):
                     )
                     ingredients = torch.multinomial(
                         ingredients_probs.T, num_samples=1).squeeze(1)
+                    print(ingredients)
 
                     # Mix ingredients to state
                     current_state.mix_ingredient(ingredients)
+                    print(current_state.previous_active_effects)
+                    print(current_state.active_effects)
 
                     # Store ingredient in recipe
                     recipes[

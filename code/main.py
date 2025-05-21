@@ -30,8 +30,8 @@ results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
     num_simulations=1,
-    batch_size=20_000,
-    num_steps=8,
+    batch_size=5,
+    num_steps=10,
     T0=10.0
 )
 print(
@@ -46,10 +46,10 @@ Lucro: {results_opt["profit"]}
 )
 
 # Plot simulation graphs
-visualize_ingredients_choice(
-    results_data['recipes'],
-    n_ingredients=chain.n_ingredients,
-    ingredients_df=chain.ingredients_df,
-)
+# visualize_ingredients_choice(
+#     results_data['recipes'],
+#     n_ingredients=chain.n_ingredients,
+#     ingredients_df=chain.ingredients_df,
+# )
 
-visualize_profits(profits=results_data['profits'])
+# visualize_profits(profits=results_data['profits'])

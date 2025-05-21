@@ -375,7 +375,7 @@ class StateTensors(DatabaseTensors):
 
             # Restore previous ingredients count for removed ingredients
             self.ingredients_count_path[
-                self.path_length[removed_ingredients_ids],
+                self.path_length[removed_ingredients_ids] - 1,
                 :,
                 removed_ingredients_ids
             ] = 0.0
@@ -386,7 +386,7 @@ class StateTensors(DatabaseTensors):
 
             # Restore previous active effects for removed ingredients
             self.active_effects_path[
-                self.path_length[removed_ingredients_ids],
+                self.path_length[removed_ingredients_ids] - 1,
                 :,
                 removed_ingredients_ids
             ] = 0.0
