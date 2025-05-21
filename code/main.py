@@ -33,7 +33,7 @@ chain = ChainSimulation(torch_device)
 results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
-    num_simulations=50,
+    num_simulations=1,
     batch_size=15_000,
     num_steps=10,
     T0=10.0
@@ -55,9 +55,9 @@ visualize_ingredients_choice(
     n_ingredients=chain.n_ingredients,
     ingredients_df=chain.ingredients_df,
 )
-visualize_effects(
-    effects=results_data['effects'],
-)
 visualize_profits(
     profits=results_data['profits'],
+)
+visualize_effects(
+    effects=results_data['effects'],
 )

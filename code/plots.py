@@ -47,8 +47,7 @@ def visualize_ingredients_choice(
     fig.savefig("../plots/ingredients_choice.png")
 
 
-def visualize_profits(
-    profits: torch.Tensor):
+def visualize_profits(profits: torch.Tensor):
     """Visualize profit time series."""
     num_steps = profits.shape[0]
     profits = profits.cpu().numpy()
@@ -81,17 +80,16 @@ def visualize_profits(
     fig.savefig("../plots/profits_series.png")
 
 
-def visualize_effects(
-    effects: torch.Tensor):
+def visualize_effects(effects: torch.Tensor):
     """Visualize effects time series."""
     num_steps = effects.shape[0]
     effects = effects.cpu().numpy()
 
     steps = np.arange(1, num_steps + 1)
 
-    sum = effects.sum(axis=1)
-    mean = sum.mean(axis=1)
-    sem = sum.std(axis=1) / np.sqrt(sum.shape[1])
+    effects_sum = effects.sum(axis=2)
+    mean = effects_sum.mean(axis=1)
+    sem = effects_sum.std(axis=1) / np.sqrt(effects_sum.shape[1])
     ci_upper = mean + 1.96 * sem
     ci_lower = mean - 1.96 * sem
 
