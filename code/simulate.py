@@ -144,18 +144,18 @@ class ChainSimulation(DatabaseTensors):
         neighbours_state.mix_ingredient(all_ingredients)
 
         # Get neighbours acceptance
-        neighbours_accep = self._neighbours_acceptance(
+        ingredients_accep = self._neighbours_acceptance(
             current_state=current_state,
             neighbours_state=neighbours_state,
             step=step
         )
 
         # Calculate probability from normal adjusted by acceptance
-        neighbours_prob = (
-            neighbours_accep /
-            neighbours_accep.sum(dim=0)
+        ingredients_prob = (
+            ingredients_accep /
+            ingredients_accep.sum(dim=0)
         )
-        return neighbours_prob
+        return ingredients_prob
 
     def optimize_recipe(
         self,
