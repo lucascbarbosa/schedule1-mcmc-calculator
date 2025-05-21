@@ -47,60 +47,71 @@ def visualize_ingredients_choice(
     fig.savefig("../plots/ingredients_choice.png")
 
 
-def visualize_profits_effects(
-        profits: torch.Tensor,
-        effects: torch.Tensor):
-    """Visualize profit and effects time series."""
+def visualize_profits(
+    profits: torch.Tensor):
+    """Visualize profit time series."""
     num_steps = profits.shape[0]
-
     profits = profits.cpu().numpy()
-    effects = effects.cpu().numpy()
 
-    # Fetch mean and confiudence interval of profits and effects
     steps = np.arange(1, num_steps + 1)
 
-    effects_sum = effects.sum(axis=1)
-    effects_mean = effects_sum.mean(axis=1)
-    effects_sem = effects_sum.std(axis=1) / np.sqrt(effects_sum.shape[1])
-    effects_ci_upper = effects_mean + 1.96 * effects_sem
-    effects_ci_lower = effects_mean - 1.96 * effects_sem
+    mean = profits.mean(axis=1)
+    sem = profits.std(axis=1) / np.sqrt(profits.shape[1])
+    ci_upper = mean + 1.96 * sem
+    ci_lower = mean - 1.96 * sem
 
-    profits_mean = profits.mean(axis=1)
-    profits_sem = profits.std(axis=1) / np.sqrt(profits.shape[1])
-    profits_ci_upper = profits_mean + 1.96 * profits_sem
-    profits_ci_lower = profits_mean - 1.96 * profits_sem
-
-    # Plot profits and effects
+    # Plot profits
     fig = plt.figure(figsize=(10, 6))
     plt.plot(
         steps,
-        profits_mean,
+        mean,
         linewidth=2,
-        label='Profit'
     )
     plt.fill_between(
         steps,
-        profits_ci_lower,
-        profits_ci_upper,
-        alpha=0.3,
-    )
-    plt.plot(
-        steps,
-        effects_mean,
-        linewidth=2,
-        label='Number of active effects'
-    )
-    plt.fill_between(
-        steps,
-        effects_ci_lower,
-        effects_ci_upper,
+        ci_lower,
+        ci_upper,
         alpha=0.3,
     )
     plt.xlabel('Step')
     plt.ylabel('Profit')
-    plt.title('Profit and number of active effects per step')
+    plt.title('Profit per step')
     plt.grid(True)
     fig.tight_layout()
-    fig.savefig("../plots/profits_effects_series.png")
-    plt.legend()
+    fig.savefig("../plots/profits_series.png")
+
+
+def visualize_effects(
+    effects: torch.Tensor):
+    """Visualize effects time series."""
+    num_steps = effects.shape[0]
+    effects = effects.cpu().numpy()
+
+    steps = np.arange(1, num_steps + 1)
+
+    sum = effects.sum(axis=1)
+    mean = sum.mean(axis=1)
+    sem = sum.std(axis=1) / np.sqrt(sum.shape[1])
+    ci_upper = mean + 1.96 * sem
+    ci_lower = mean - 1.96 * sem
+
+    # Plot effects
+    fig = plt.figure(figsize=(10, 6))
+    plt.plot(
+        steps,
+        mean,
+        linewidth=2,
+    )
+    plt.fill_between(
+        steps,
+        ci_lower,
+        ci_upper,
+        alpha=0.3,
+    )
+    plt.xlabel('Step')
+    plt.ylabel('Number of active effects')
+    plt.title('Number of active effects per step')
+    plt.grid(True)
+    fig.tight_layout()
+    fig.savefig("../plots/effects_series.png")
     plt.show()
