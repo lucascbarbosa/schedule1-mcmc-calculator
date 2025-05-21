@@ -1,5 +1,5 @@
 """Main script."""
-from plots import visualize_ingredients_choice, visualize_profits
+from plots import visualize_ingredients_choice, visualize_profits_effects
 from simulate import ChainSimulation
 
 # Optimize recipes
@@ -30,8 +30,8 @@ results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
     num_simulations=1,
-    batch_size=20_000,
-    num_steps=8,
+    batch_size=5_000,
+    num_steps=100,
     T0=10.0
 )
 print(
@@ -52,4 +52,7 @@ visualize_ingredients_choice(
     ingredients_df=chain.ingredients_df,
 )
 
-visualize_profits(profits=results_data['profits'])
+visualize_profits_effects(
+    profits=results_data['profits'],
+    effects=results_data['effects'],
+)
