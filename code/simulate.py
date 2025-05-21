@@ -44,7 +44,11 @@ class ChainSimulation(DatabaseTensors):
         id_list = recipe.tolist()
         id_to_name = self.ingredients_df.set_index(
             "ingredient_id")["ingredient_name"].to_dict()
-        return [id_to_name[i] for i in id_list]
+        names = []
+        for idx in id_list:
+            if idx != self.n_ingredients:
+                names.append(id_to_name[idx])
+        return names
 
     def _decode_effects(self, effects: torch.Tensor):
         """Convert from effects id to name."""
