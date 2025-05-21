@@ -198,14 +198,6 @@ class ChainSimulation(DatabaseTensors):
             num_steps, num_simulations * self.batch_size, dtype=torch.float32,
             device="cpu")
 
-        # Define neighbours state
-        neighbours_state = StateTensors(
-            self.base_product,
-            self.batch_size * self.n_ingredients,
-            torch_device=self.device,
-            num_steps=self.num_steps,
-        )
-
         # Generate all possible ingredients tensor.
         all_ingredients = torch.arange(
             self.n_ingredients, device=self.device
@@ -215,6 +207,7 @@ class ChainSimulation(DatabaseTensors):
 
         with torch.no_grad():
             for s in range(num_simulations):
+                torch.cuda.empty_cache()
                 # Define current state
                 current_state = StateTensors(
                     base_product=base_product,
@@ -223,8 +216,15 @@ class ChainSimulation(DatabaseTensors):
                     num_steps=self.num_steps,
                 )
 
-                t = 0
-                while ~(current_state.active_effects.sum(dim=0) == num_steps).any():
+                # Define neighbours state
+                neighbours_state = StateTensors(
+                    self.base_product,
+                    self.batch_size * self.n_ingredients,
+                    torch_device=self.device,
+                    num_steps=self.num_steps,
+                )
+
+                for t in range(num_steps):
                     start_time = time.time()
                     print(f"Batch simulation {s + 1}: Step {t + 1}")
                     # Ingredients choice prob (n_ingredients, batch_size)
@@ -236,9 +236,11 @@ class ChainSimulation(DatabaseTensors):
                     )
                     ingredients = torch.multinomial(
                         ingredients_probs.T, num_samples=1).squeeze(1)
+                    print(ingredients)
 
                     # Mix ingredients to state
                     current_state.mix_ingredient(ingredients)
+                    print(current_state.path_length)
 
                     # Store ingredient in recipe
                     recipes[

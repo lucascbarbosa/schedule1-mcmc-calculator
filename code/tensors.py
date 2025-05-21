@@ -333,7 +333,7 @@ class StateTensors(DatabaseTensors):
 
         # If ingredient has to be removed, set it to 0 (hardcoded)
         remove_ingredients_mask = (
-            ingredients == self.n_ingredients).to(device=self.device)
+            ingredients == self.n_ingredients).to(self.device)
         ingredients[remove_ingredients_mask] = 0
         # Ids of ingredients to be removed and added
         removed_ingredients_ids = torch.nonzero(
@@ -410,7 +410,7 @@ class StateTensors(DatabaseTensors):
             self.path_length, :, torch.arange(self.path_length.shape[0])].T
 
         # Increment path length
-        self.path_length += 2 * (~remove_ingredients_mask).int() - 1
+        self.path_length += 2 * (~remove_ingredients_mask.int()) - 1
         self.path_length = torch.clamp(
             self.path_length, min=0, max=self.num_steps
         )

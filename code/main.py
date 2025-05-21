@@ -37,8 +37,8 @@ chain = ChainSimulation(torch_device)
 results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
-    num_simulations=1,
-    batch_size=10,
+    num_simulations=5,
+    batch_size=1_000,
     num_steps=8,
     T0=5.0
 )
