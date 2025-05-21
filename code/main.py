@@ -39,7 +39,7 @@ results_data, results_opt = chain.optimize_recipe(
     objective_function='profit',
     num_simulations=1,
     batch_size=10,
-    num_steps=3,
+    num_steps=8,
     T0=5.0
 )
 print(

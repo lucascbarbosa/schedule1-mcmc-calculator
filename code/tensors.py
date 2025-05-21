@@ -140,6 +140,8 @@ class StateTensors(DatabaseTensors):
         """
         # Define global variables
         super().__init__(torch_device=torch_device)
+        self.batch_size = batch_size
+        self.num_steps = num_steps
 
         # Get base product cost, value and effect
         base_product = self.products_df[
@@ -152,7 +154,7 @@ class StateTensors(DatabaseTensors):
         # Each element of the array represents how many times that
         # ingredient was used.
         self.ingredients_count = torch.zeros(
-            (self.n_ingredients, batch_size),
+            (self.n_ingredients, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
@@ -160,7 +162,7 @@ class StateTensors(DatabaseTensors):
         # Create a sparse binary effects array.
         # Earch element of the array indicates if effect is present.
         self.active_effects = torch.zeros(
-            (self.n_effects, batch_size),
+            (self.n_effects, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
@@ -171,19 +173,19 @@ class StateTensors(DatabaseTensors):
 
         # Path of ingredients count and active effects
         self.ingredients_count_path = torch.zeros(
-            (num_steps, self.n_ingredients, batch_size),
+            (self.num_steps, self.n_ingredients, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
         self.active_effects_path = torch.zeros(
-            (num_steps, self.n_effects, batch_size),
+            (self.num_steps, self.n_effects, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
 
         # Path length
         self.path_length = torch.zeros(
-            batch_size,
+            self.batch_size,
             dtype=torch.int32,
             device=self.device
         )
@@ -409,3 +411,6 @@ class StateTensors(DatabaseTensors):
 
         # Increment path length
         self.path_length += 2 * (~remove_ingredients_mask).int() - 1
+        self.path_length = torch.clamp(
+            self.path_length, min=0, max=self.num_steps
+        )

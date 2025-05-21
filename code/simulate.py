@@ -223,7 +223,8 @@ class ChainSimulation(DatabaseTensors):
                     num_steps=self.num_steps,
                 )
 
-                for t in range(num_steps):
+                t = 0
+                while ~(current_state.active_effects.sum(dim=0) == num_steps).any():
                     start_time = time.time()
                     print(f"Batch simulation {s + 1}: Step {t + 1}")
                     # Ingredients choice prob (n_ingredients, batch_size)
@@ -235,7 +236,6 @@ class ChainSimulation(DatabaseTensors):
                     )
                     ingredients = torch.multinomial(
                         ingredients_probs.T, num_samples=1).squeeze(1)
-                    print(ingredients)
 
                     # Mix ingredients to state
                     current_state.mix_ingredient(ingredients)
@@ -254,6 +254,7 @@ class ChainSimulation(DatabaseTensors):
                         t, s * self.batch_size:(s + 1) * self.batch_size
                     ] = current_state.current_value()
                     print(f"TET: {round(time.time() - start_time, 3)}s")
+                    t += 1
 
         # Calculates objective
         profits = values - costs
@@ -312,7 +313,6 @@ class ChainSimulation(DatabaseTensors):
 
         # Encode ingredients in recipe
         recipe = self._encode_recipe(recipe)
-        print(recipe)
 
         for i in range(recipe.shape[0]):
             ingredient = recipe[i]
