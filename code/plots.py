@@ -5,12 +5,13 @@ import torch
 
 
 def visualize_ingredients_choice(
-    recipes: torch.Tensor,
+    ingredients: torch.Tensor,
     n_ingredients: int):
     """Visualize ingredients choice in bar plots."""
-    num_steps = recipes.shape[0]
+    ingredients = ingredients.int()
+    num_steps = ingredients.shape[0]
     ingredients_count = torch.stack([
-        torch.bincount(recipes[step], minlength=n_ingredients)
+        torch.bincount(ingredients[step], minlength=n_ingredients + 1)
         for step in range(num_steps)
     ])
     ingredients_proportion = (
@@ -26,16 +27,21 @@ def visualize_ingredients_choice(
         if n_ingredients <= 20
         else plt.cm.get_cmap('hsv', n_ingredients)
     )
-    colors = [cmap(i) for i in range(n_ingredients)]
+    colors = [cmap(i) for i in range(n_ingredients + 1)]
 
-    for i in range(n_ingredients):
+    for i in range(n_ingredients + 1):
+        if i < n_ingredients:
+            label = f'Ingredient {i + 1}'
+        else:
+            label = 'Remove last ingredient'
+
         ax.bar(
             steps,
             ingredients_proportion[:, i],
             bottom=bottom,
             width=0.8,
             color=colors[i],
-            label=f'Ingredient {i + 1}'
+            label=label
         )
         bottom += ingredients_proportion[:, i]
 
@@ -54,11 +60,10 @@ def visualize_ingredients_choice(
 def visualize_profits(profits: torch.Tensor):
     """Visualize profit time series."""
     num_steps = profits.shape[0]
-    batch_size = profits.shape[1]
 
     profits = profits.cpu().numpy()
     means = profits.mean(axis=1)
-    sems = profits.std(axis=1) / np.sqrt(batch_size)
+    sems = profits.std(axis=1)
     ci_upper = means + 1.96 * sems
     ci_lower = means - 1.96 * sems
     steps = np.arange(1, num_steps + 1)
