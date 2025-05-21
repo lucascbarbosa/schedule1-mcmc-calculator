@@ -1,11 +1,13 @@
 """Script to visualize plots of optimization."""
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 
 
 def visualize_ingredients_choice(
     ingredients: torch.Tensor,
+    ingredients_df: pd.DataFrame,
     n_ingredients: int):
     """Visualize ingredients choice in bar plots."""
     ingredients = ingredients.int()
@@ -31,9 +33,10 @@ def visualize_ingredients_choice(
 
     for i in range(n_ingredients + 1):
         if i < n_ingredients:
-            label = f'Ingredient {i + 1}'
+            ingredient_name = ingredients_df.iloc[i]['ingredient_name']
+            label = f'{ingredient_name}'
         else:
-            label = 'Remove last ingredient'
+            label = 'REMOVE'
 
         ax.bar(
             steps,
