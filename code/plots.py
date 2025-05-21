@@ -63,7 +63,7 @@ def visualize_profits(profits: torch.Tensor):
 
     profits = profits.cpu().numpy()
     means = profits.mean(axis=1)
-    sems = profits.std(axis=1)
+    sems = profits.std(axis=1) / np.sqrt(profits.shape[1])
     ci_upper = means + 1.96 * sems
     ci_lower = means - 1.96 * sems
     steps = np.arange(1, num_steps + 1)

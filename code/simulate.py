@@ -80,6 +80,7 @@ class ChainSimulation(DatabaseTensors):
                 (self.n_ingredients, self.batch_size)
             )
             previous_obj = current_state.previous_profit()
+            # print(previous_obj)
 
         elif self.objective_function == 'effects':
             desired_effects = self._encode_effects(
@@ -108,6 +109,8 @@ class ChainSimulation(DatabaseTensors):
         acceps = torch.clamp(
             torch.exp((neighbours_obj - current_obj) / T), max=1.0
         )
+        if step == 0:
+            acceps[-1, :] = 0.0
         return acceps
 
     def compute_ingredient_prob(

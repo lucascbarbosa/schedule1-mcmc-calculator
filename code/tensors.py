@@ -173,15 +173,17 @@ class StateTensors(DatabaseTensors):
 
         # Path of ingredients count and active effects
         self.ingredients_count_path = torch.zeros(
-            (self.num_steps, self.n_ingredients, self.batch_size),
+            (self.num_steps + 1, self.n_ingredients, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
+        self.ingredients_count_path[0, :, :] = self.ingredients_count.clone()
         self.active_effects_path = torch.zeros(
-            (self.num_steps, self.n_effects, self.batch_size),
+            (self.num_steps + 1, self.n_effects, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
+        self.active_effects_path[0, :, :] = self.active_effects.clone()
 
         # Path length
         self.path_length = torch.zeros(
@@ -357,8 +359,15 @@ class StateTensors(DatabaseTensors):
         # Apply ingredient effect
         self.apply_ingredients_effect(ingredients)
 
+        # Increment path length
+        self.path_length[added_ingredients_ids] += 1
+        self.path_length[removed_ingredients_ids] -= 1
+        self.path_length = torch.clamp(
+            self.path_length, min=0, max=self.num_steps
+        )
+
         # Restore previous state for any ingredients equal to 0
-        if remove_ingredients_mask.any():
+        if removed_ingredients_ids.shape[0] > 0:
             # Get previous state tensors
             (
                 previous_ingredients_count, previous_active_effects
@@ -386,21 +395,23 @@ class StateTensors(DatabaseTensors):
                 removed_ingredients_ids
             ] = previous_active_effects[:, removed_ingredients_ids]
 
-        elif ~remove_ingredients_mask.any():
+        if added_ingredients_ids.shape[0] > 0:
             # Updated paths
             self.ingredients_count_path[
                 self.path_length[added_ingredients_ids],
                 :,
                 added_ingredients_ids
             ] = pre_mix_ingredients_count[
-                :, added_ingredients_ids].T
+                :, added_ingredients_ids
+            ].T
 
             self.active_effects_path[
                 self.path_length[added_ingredients_ids],
                 :,
                 added_ingredients_ids
             ] = pre_mix_active_effects[
-                :, added_ingredients_ids].T
+                :, added_ingredients_ids
+            ].T
 
         # Update previous state
         self.previous_ingredients_count = self.ingredients_count_path[
@@ -408,9 +419,3 @@ class StateTensors(DatabaseTensors):
 
         self.previous_active_effects = self.active_effects_path[
             self.path_length, :, torch.arange(self.path_length.shape[0])].T
-
-        # Increment path length
-        self.path_length += 2 * (~remove_ingredients_mask.int()) - 1
-        self.path_length = torch.clamp(
-            self.path_length, min=0, max=self.num_steps
-        )
