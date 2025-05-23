@@ -124,16 +124,16 @@ class StateTensors(DatabaseTensors):
         self,
         base_product: str,
         batch_size: int,
-        torch_device: str,
         recipe_size: int,
+        torch_device: str,
     ):
         """Create initial ingredients and effects tensors.
 
         Args:
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
-            torch_device (torch.device): Torch device (cpu or cuda).
             recipe_size (int): Number of steps in simulation.
+            torch_device (torch.device): Torch device (cpu or cuda).
 
         Raises:
             ValueError: If chosen based product.
