@@ -424,12 +424,10 @@ class State(Database):
 
         # Mix each step of recipe
         for step in range(1, self.recipe_size + 1):
-            print(effects)
             # Fetch recipes and effects step
             recipe_step = recipes[step - 1, :].int()
 
             # Mix ingredients and store resultant effects tensor
             effects = self.mix_ingredients(recipe_step, effects)
-            print(effects)
 
         return effects
