@@ -9,32 +9,11 @@ from simulate import ChainSimulation
 
 # Optimize recipes
 chain = ChainSimulation()
-# recipe = [
-#     'Banana',
-#     'Gasoline',
-#     'Paracetamol',
-#     'Cuke',
-#     'Mega Bean',
-#     'Battery',
-#     'Banana',
-#     'Cuke',
-# ]
-# result = chain.mix_recipes("OG Kush", recipe)
-# print(
-# f"""
-# Receita: {recipe}
-# Efeitos: {result['effects']}
-# Custo: {result['cost']}
-# Valor: {result['value']}
-# Lucro: {result['profit']}
-# """
-# )
-
 results_data, results_opt = chain.optimize_recipes(
     base_product="OG Kush",
     n_batches=1,
-    batch_size=10,
-    n_steps=10,
+    batch_size=20_000,
+    n_steps=50,
     initial_temperature=1.0,
 )
 print(
