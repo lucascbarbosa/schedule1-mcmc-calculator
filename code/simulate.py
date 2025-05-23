@@ -192,17 +192,20 @@ class ChainSimulation(DatabaseTensors):
 
         # Output tensors
         recipes = torch.zeros(
-            num_steps, num_simulations * self.batch_size, dtype=torch.float32,
+            num_steps, num_simulations * self.batch_size,
+            dtype=torch.int32,
             device="cpu")
         effects = torch.zeros(
             num_steps, num_simulations * self.batch_size, self.n_effects,
             dtype=torch.float32, device="cpu"
         )
         costs = torch.zeros(
-            num_steps, num_simulations * self.batch_size, dtype=torch.float32,
+            num_steps, num_simulations * self.batch_size,
+            dtype=torch.float32,
             device="cpu")
         values = torch.zeros(
-            num_steps, num_simulations * self.batch_size, dtype=torch.float32,
+            num_steps, num_simulations * self.batch_size,
+            dtype=torch.float32,
             device="cpu")
 
         # Generate all possible ingredients tensor.
@@ -242,21 +245,36 @@ class ChainSimulation(DatabaseTensors):
                         t
                     )
                     ingredients = torch.multinomial(
-                        ingredients_probs.T, num_samples=1).squeeze(1)
+                        ingredients_probs.T, num_samples=1).squeeze(1).int()
 
                     # Mix ingredients to state
                     current_state.mix_ingredient(ingredients)
 
-                    # Store ingredient in recipe
+                    # Store added ingredients and delete removed ingredients
+                    added_ingredients_ids = s * self.batch_size + torch.where(
+                        ingredients != self.n_ingredients
+                    )[0]
+                    removed_ingredients_ids = s * self.batch_size + torch.where(
+                        ingredients == self.n_ingredients
+                    )[0]
                     recipes[
-                        t, s * self.batch_size:(s + 1) * self.batch_size
-                    ] = ingredients
+                        t, added_ingredients_ids
+                    ] = ingredients[
+                        added_ingredients_ids
+                    ].clone().to(device='cpu')
+                    recipes[t - 1, removed_ingredients_ids] = 0
+
+                    # Store effects
                     effects[
                         t, s * self.batch_size:(s + 1) * self.batch_size, :
                     ] = current_state.active_effects.T
+
+                    # Store costs
                     costs[
                         t, s * self.batch_size:(s + 1) * self.batch_size
                     ] = current_state.current_cost()
+
+                    # Store values
                     values[
                         t, s * self.batch_size:(s + 1) * self.batch_size
                     ] = current_state.current_value()
