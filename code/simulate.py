@@ -46,8 +46,7 @@ class ChainSimulation(DatabaseTensors):
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
         for idx in id_list:
-            if idx != self.n_ingredients:
-                names.append(id_to_name[idx])
+            names.append(id_to_name[idx])
         return names
 
     def _decode_effects(self, effects: torch.Tensor):
