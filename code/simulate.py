@@ -84,25 +84,24 @@ class ChainSimulation(Database):
             Tuple[List[str], List[str], float, float, float]:
             Optimal recipe with effects, cost, value and profit.
         """
-        # Simulation parameters
-        self.batch_size = batch_size
-        self.recipe_size = recipe_size
-        self.base_product = base_product
-        self.initial_temperature = initial_temperature
-
         # Output tensors
-        effects = torch.zeros(
-            (n_steps, self.n_effects, n_batches * self.batch_size),
+        sim_recipes = torch.zeros(
+            (n_steps, recipe_size, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
-        costs = torch.zeros(
-            (n_steps, n_batches * self.batch_size),
+        sim_effects = torch.zeros(
+            (n_steps, self.n_effects, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
-        values = torch.zeros(
-            (n_steps, n_batches * self.batch_size),
+        sim_costs = torch.zeros(
+            (n_steps, n_batches * batch_size),
+            dtype=torch.float32,
+            device="cpu"
+        )
+        sim_values = torch.zeros(
+            (n_steps, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
@@ -113,8 +112,8 @@ class ChainSimulation(Database):
                 # Define current state
                 current_state = State(
                     base_product=base_product,
-                    batch_size=self.batch_size,
-                    recipe_size=self.recipe_size,
+                    batch_size=batch_size,
+                    recipe_size=recipe_size,
                 )
 
                 for t in range(n_steps):
@@ -125,50 +124,55 @@ class ChainSimulation(Database):
                     start_time = time.time()
                     print(f"Batch {b + 1}: Step {t + 1}")
 
-                    # Evolve chain state
-                    current_state.walk(temperature)
+                    # Store recipes
+                    sim_recipes[
+                        t, :, b * batch_size: (b + 1) * batch_size
+                    ] = current_state.get_recipes()
 
                     # Store effects
-                    effects[
-                        t, :, b * self.batch_size:(b + 1) * self.batch_size
+                    sim_effects[
+                        t, :, b * batch_size:(b + 1) * batch_size
                     ] = current_state.get_effects()
 
                     # Store costs
-                    costs[
-                        t, b * self.batch_size:(b + 1) * self.batch_size
+                    sim_costs[
+                        t, b * batch_size:(b + 1) * batch_size
                     ] = current_state.cost()
 
                     # Store values
-                    values[
-                        t, b * self.batch_size:(b + 1) * self.batch_size
+                    sim_values[
+                        t, b * batch_size:(b + 1) * batch_size
                     ] = current_state.value()
+
+                    # Evolve chain state
+                    current_state.walk(temperature)
+
                     print(f"TET: {round(time.time() - start_time, 3)}s")
-                    t += 1
 
-        # # Calculates objective
-        # profits = values - costs
+        # Calculates objective
+        profits = sim_values - sim_costs
 
-        # # Fetch optimal recipe
-        # id_opt = torch.where(profits == profits.max())
-        # opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
-        # recipe_opt = self._decode_recipes(recipes[:opt_step + 1, opt_sim])
-        # effects_opt = self._decode_effects(effects[opt_step, opt_sim, :])
-        # cost_opt = float(costs[opt_step, opt_sim])
-        # value_opt = float(values[opt_step, opt_sim])
-        # profit_opt = float(profits[opt_step, opt_sim])
-        # results_data = {
-        #     "recipes": recipes,
-        #     "effects": effects,
-        #     "costs": costs,
-        #     "values": values,
-        #     "profits": profits
-        # }
-        # results_opt = {
-        #     "recipe": recipe_opt,
-        #     "effects": effects_opt,
-        #     "cost": cost_opt,
-        #     "value": value_opt,
-        #     "profit": profit_opt
-        # }
+        # Fetch optimal recipe
+        id_opt = torch.where(profits == profits.max())
+        opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
+        recipe_opt = self._decode_recipes(sim_recipes[opt_step, :, opt_sim])
+        effects_opt = self._decode_effects(sim_effects[opt_step, :, opt_sim])
+        cost_opt = float(sim_costs[opt_step, opt_sim])
+        value_opt = float(sim_values[opt_step, opt_sim])
+        profit_opt = float(profits[opt_step, opt_sim])
+        results_data = {
+            "recipes": sim_recipes,
+            "effects": sim_effects,
+            "costs": sim_costs,
+            "values": sim_values,
+            "profits": profits
+        }
+        results_opt = {
+            "recipe": recipe_opt,
+            "effects": effects_opt,
+            "cost": cost_opt,
+            "value": value_opt,
+            "profit": profit_opt
+        }
 
-        # return results_data, results_opt
+        return results_data, results_opt
