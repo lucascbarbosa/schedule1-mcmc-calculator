@@ -45,8 +45,9 @@ class ChainSimulation(DatabaseTensors):
         id_to_name = self.ingredients_df.set_index(
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
-        for idx in id_list:
-            names.append(id_to_name[idx])
+        for ingredient_id in id_list:
+            if ingredient_id != self.n_ingredients: 
+                names.append(id_to_name[ingredient_id])
         return names
 
     def _decode_effects(self, effects: torch.Tensor):
@@ -190,10 +191,10 @@ class ChainSimulation(DatabaseTensors):
         self.objective_function = objective_function
 
         # Output tensors
-        recipes = torch.zeros(
+        recipes = torch.ones(
             num_steps, num_simulations * self.batch_size,
             dtype=torch.int32,
-            device="cpu")
+            device="cpu") * self.n_ingredients
         effects = torch.zeros(
             num_steps, num_simulations * self.batch_size, self.n_effects,
             dtype=torch.float32, device="cpu"
@@ -250,18 +251,15 @@ class ChainSimulation(DatabaseTensors):
                     current_state.mix_ingredient(ingredients)
 
                     # Store added ingredients and delete removed ingredients
-                    added_ingredients_ids = s * self.batch_size + torch.where(
-                        ingredients != self.n_ingredients
-                    )[0]
                     removed_ingredients_ids = s * self.batch_size + torch.where(
                         ingredients == self.n_ingredients
                     )[0]
                     recipes[
-                        t, added_ingredients_ids
-                    ] = ingredients[
-                        added_ingredients_ids
-                    ].clone().to(device='cpu')
-                    recipes[t - 1, removed_ingredients_ids] = 0
+                        t, s * self.batch_size:(s + 1) * self.batch_size
+                    ] = ingredients
+                    recipes[
+                        t - 1, removed_ingredients_ids
+                    ] = self.n_ingredients
 
                     # Store effects
                     effects[
