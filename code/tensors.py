@@ -176,13 +176,13 @@ class State(Database):
         if the effect at a given recipe step and batch simulation is active.
         """
         effects = torch.zeros(
-            (self.recipe_size + 1, self.n_effects, self.batch_size),
+            (self.n_effects, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
 
         # Define initial effect as the effect of the base product
-        effects[0, self.product_effect, :] = 1
+        effects[self.product_effect, :] = 1
 
         return effects
 
@@ -196,11 +196,11 @@ class State(Database):
 
     def get_effects(self) -> torch.Tensor:
         """Get current active effects tensor."""
-        return self.effects.clone()[-1]
+        return self.effects.clone()
 
     def get_neighbour_effects(self) -> torch.Tensor:
         """Get neighbour active effects tensor."""
-        return self.neighbour_effects.clone()[-1]
+        return self.neighbour_effects.clone()
 
     def ingredients_count(self, recipes: torch.Tensor) -> torch.Tensor:
         """Count each ingredient in recipes for each batch (column).
@@ -309,11 +309,11 @@ class State(Database):
     def mix_ingredients(
         self,
         recipe_step: torch.Tensor,
-        effects_step: torch.Tensor
+        effects: torch.Tensor
     ) -> torch.Tensor:
         """Mix products with ingredients in batch."""
         # Apply effects transition rules
-        effects_result = self.apply_effects_rules(recipe_step, effects_step)
+        effects_result = self.apply_effects_rules(recipe_step, effects)
 
         # Apply ingredient effect
         effects_result = self.apply_ingredients_effect(
@@ -424,13 +424,12 @@ class State(Database):
 
         # Mix each step of recipe
         for step in range(1, self.recipe_size + 1):
+            print(effects)
             # Fetch recipes and effects step
             recipe_step = recipes[step - 1, :].int()
-            effects_step = effects[step - 1, :, :]
 
             # Mix ingredients and store resultant effects tensor
-            effects[step, :, :] = self.mix_ingredients(
-                recipe_step, effects_step)
+            effects = self.mix_ingredients(recipe_step, effects)
+            print(effects)
 
         return effects
-
