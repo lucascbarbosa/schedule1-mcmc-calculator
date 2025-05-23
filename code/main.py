@@ -30,24 +30,23 @@ chain = ChainSimulation()
 # """
 # )
 
-chain.optimize_recipes(
+results_data, results_opt = chain.optimize_recipes(
     base_product="OG Kush",
     n_batches=1,
     batch_size=10,
-    n_steps=5,
-    recipe_size=3,
+    n_steps=10,
     initial_temperature=1.0,
 )
-# print(
-# f"""
-# OTIMIZADO:
-# Receita: {results_opt["recipe"]}
-# Efeitos: {results_opt["effects"]}
-# Custo: {results_opt["cost"]}
-# Valor: {results_opt["value"]}
-# Lucro: {results_opt["profit"]}
-# """
-# )
+print(
+f"""
+OTIMIZADO:
+Receita: {results_opt["recipe"]}
+Efeitos: {results_opt["effects"]}
+Custo: {results_opt["cost"]}
+Valor: {results_opt["value"]}
+Lucro: {results_opt["profit"]}
+"""
+)
 
 # # Plot results
 # plot_ingredients_heatmap(
