@@ -178,45 +178,50 @@ class StateTensors(DatabaseTensors):
         ] = 1
 
         # Mix recipe to generate resultant active effects
-        self.apply_recipes()
+        recipes = self.get_state()
+        self.active_effects = self.compute_active_effects(recipes)
 
-    def get_recipes(self) -> torch.Tensor:
-        """Get current recipe tensor."""
+    def get_state(self) -> torch.Tensor:
+        """Get current state (recipes) tensor."""
         return self.recipes.clone()
 
     def get_active_effects(self) -> torch.Tensor:
         """Get current active effects tensor."""
         return self.active_effects.clone()
 
-    def count_ingredients(self, recipe: torch.Tensor) -> torch.Tensor:
-        """Count each ingredient in recipe."""
-        return torch.bincount(recipe, minlength=self.n_ingredients)
+    def ingredients_count(self, recipes: torch.Tensor) -> torch.Tensor:
+        """Count each ingredient in recipes for each batch (column).
 
-    def cost(self) -> float:
+        Returns a tensor of shape (n_ingredients, batch_size) where each column
+        contains the count of each ingredient for that batch.
+        """
+        one_hot = torch.nn.functional.one_hot(
+            recipes.long(), num_classes=self.n_ingredients
+        )
+        ingredients_count = one_hot.sum(dim=0).T.float()
+        return ingredients_count
+
+    def cost(self, recipes: torch.Tensor) -> float:
         """Calculates the cost of the recipe."""
-        ingredients_count = self.count_ingredients()
+        ingredients_count = self.ingredients_count(recipes)
         return (
             self.ingredients_cost @ ingredients_count
         )
 
-    def value(self) -> float:
+    def value(self, effects: torch.Tensor) -> float:
         """Calculates sell value of the resulting product."""
-        mult = self.effects_multiplier @ self.active_effects
+        mult = self.effects_multiplier @ effects
         return (1 + mult) * float(self.product_value)
 
-    def profit(self) -> float:
+    def profit(self, recipes: torch.Tensor, effects: torch.Tensor) -> float:
         """Calculates profit of current state."""
-        return self.value() - self.cost()
+        return self.value(effects) - self.cost(recipes)
 
     def effects_distance(self, desired_effects: torch.Tensor) -> float:
         """Distance current state active and desired effects."""
         return (
             -torch.sum((self.active_effects - desired_effects)**2, dim=0)
         )
-
-    def _boltzmann_temperature(self, step: int):
-        """Calculate temperature parameter of Boltzmann distribution."""
-        return self.T0 / torch.log(torch.tensor(step + 1.01))
 
     def apply_ingredients_effect(
         self,
@@ -233,6 +238,7 @@ class StateTensors(DatabaseTensors):
         filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
         filtered_effect_ids = effect_ids[sum_mask]
         active_effects[filtered_effect_ids.to(int), filtered_batch_ids] = 1
+
         return active_effects
 
     def apply_effects_rules(
@@ -290,17 +296,17 @@ class StateTensors(DatabaseTensors):
 
         return effects_result
 
-    def create_neighbours(self) -> torch.Tensor:
+    def create_neighbour_state(self) -> torch.Tensor:
         """Create neigbour recipes from current recipe."""
-        neighbours_recipe = self.get_recipes()
+        neighbour_recipe = self.get_state()
         # Randomly choose ingredients to change id
         change_ids = torch.randint(
-            0, neighbours_recipe.shape[0],
-            (neighbours_recipe.shape[1],),
+            0, neighbour_recipe.shape[0],
+            (neighbour_recipe.shape[1],),
             dtype=torch.int,
             device=self.device
         )
-        current_values = neighbours_recipe[
+        current_values = neighbour_recipe[
             change_ids,
             torch.arange(change_ids.shape[0])
         ]
@@ -308,7 +314,7 @@ class StateTensors(DatabaseTensors):
         # Randomly generate new ingredient ids (different from the current one)
         change_values = torch.randint(
             0, self.n_ingredients - 1,
-            (neighbours_recipe.shape[1],),
+            (neighbour_recipe.shape[1],),
             dtype=torch.float32,
             device=self.device
         )
@@ -318,66 +324,88 @@ class StateTensors(DatabaseTensors):
         change_values[mask] += 1
         # Ensure new values do not exceed self.n_ingredients - 1
         change_values = change_values.clamp(max=self.n_ingredients - 1)
-        neighbours_recipe[
+        neighbour_recipe[
             change_ids,
             torch.arange(change_ids.shape[0])
         ] = change_values
-        return neighbours_recipe
+        return neighbour_recipe
 
-    def neighbours_acceptance(self, step: int) -> torch.Tensor:
+    def neighbour_acceptance(
+        self,
+        current_recipes: torch.Tensor,
+        neighbour_recipe: torch.Tensor,
+        temperature: torch.Tensor,
+    ) -> torch.Tensor:
         """Calculates probability of choosing each ingredient.
+
+        Args:
+            current_recipes (torch.Tensor): Current recipes tensor.
+            neighbour_recipe (torch.Tensor): Neighbour recipes tensor.
+            temperature (torch.Tensor): Current Boltzmann temperature.
 
         This is a Boltzmann probability adjusted by the Metropoles-Hastings
         acceptance parameter that takes into account the profit resulting from
         adding that ingredient. The temperature parameter is computed via
         simulated annealing with log schedule.
         """
-        # Fetch current temperature parameter via log schedule
-        T = self._boltzmann_temperature(step)
-
         # Compute objective function for current and neighbour states
-        current_obj = self.profit()
-        neighbours_obj = self.neighbours_profit()
+        current_effects = self.get_active_effects()
+        current_obj = self.profit(current_recipes, current_effects[-1])
+
+        neighbour_effect = self.compute_active_effects(neighbour_recipe)
+        neighbour_obj = self.profit(neighbour_recipe, neighbour_effect[-1])
 
         # Compute acceptance probability
         acceps = torch.clamp(
-            torch.exp((neighbours_obj - current_obj) / T), max=1.0
+            torch.exp((neighbour_obj - current_obj) / temperature),
+            max=1.0
         )
 
         return acceps
 
-    def evolve_states(self, step: int):
-        """Evolve recipes states."""
-        # Clone recipes state
-        current_state = self.get_recipes()
+    def evolve_states(self, temperature: torch.Tensor):
+        """Evolve recipes states using Metropolis-Hastings."""
+        # Current recipes
+        current_state = self.get_state()
 
-        # Create neighbours
-        neighbours_state = self.create_neighbours(step)
+        # Create neighbour states
+        neighbour_stat = self.create_neighbour_state()
 
         # Compute acceptances for each neighbour
-        neighbours_accep = self.neighbours_acceptance(step)
+        neighbour_accep = self.neighbour_acceptance(
+            current_state,
+            neighbour_stat,
+            temperature,
+        )
 
-    def apply_recipes(self):
-        """Apply all recipes."""
-        # Clone recipe tensor
-        recipes = self.get_recipes()
+        # Decide if neighbour will be accepted
+        accept_neighbour = (
+            torch.rand_like(neighbour_accep) <= neighbour_accep
+        )
+        accepted_broadcast = accept_neighbour.expand_as(current_state)
 
-        # Clone active effects tensor
+        # Create the new state based on neighbour acception
+        new_state = torch.where(
+            accepted_broadcast, neighbour_stat, current_state)
+        return new_state
+
+    def compute_active_effects(self, recipes: torch.Tensor):
+        """Apply the recipes and compute active effects tensor."""
+        # Clone current active effects tensor
         result_effects = self.get_active_effects()
 
         # Mix each step of recipe
-        for step in range(1, recipes.shape[0]):
+        for step in range(1, self.recipe_size + 1):
             # Fetch recipes and effects step
-            recipe_step = recipes[step, :].int()
+            recipe_step = recipes[step - 1, :].int()
             effects_step = result_effects[step - 1, :, :]
 
             # Mix ingredients and store resultant active effects
             result_effects[step, :, :] = self.mix_ingredients(
                 recipe_step, effects_step)
 
-        self.active_effects = result_effects
+        return result_effects
 
 
 state = StateTensors("OG Kush", 5, "cuda", 7)
-print(state.recipes)
-print(state.create_neighbours())
+state.evolve_states(1)
