@@ -1,4 +1,4 @@
-"""Script to visualize plots of optimization."""
+"""Script to plot optimization results."""
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
@@ -23,7 +23,7 @@ def plot_ingredients_heatmap(
     ingredients_proportion = (
         ingredients_count /
         ingredients_count.sum(dim=1, keepdim=True)
-    ).cpu().numpy().T
+    ).cpu().numpy().T[:-1, :]
 
     # Create heatmap
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -154,7 +154,7 @@ def plot_recipes_sankey(
 
                 # Add link value
                 value = float(
-                    profits[step + 1, sim] / profits.max(dim=1)[0][step]
+                    profits[step + 1, sim] / profits.max(dim=1)[0][step + 1]
                 )
                 link_values[(source, target)] = link_values.get(
                     (source, target),
