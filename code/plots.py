@@ -17,7 +17,7 @@ def plot_ingredients_heatmap(
 
     # Calculate relative frequency of each ingredient per step
     ingredients_count = torch.stack([
-        torch.bincount(recipes[step], minlength=n_ingredients + 1)
+        torch.bincount(recipes[step], minlength=n_ingredients)
         for step in range(num_steps)
     ])
     ingredients_proportion = (
@@ -38,8 +38,8 @@ def plot_ingredients_heatmap(
     ax.set_title('Relative frequency of ingredient')
     ax.set_xticks(np.arange(num_steps))
     ax.set_xticklabels(np.arange(num_steps) + 1)
-    ax.set_yticks(np.arange(n_ingredients + 1))
-    ax.set_yticklabels(ingredients_name + ['Remove'])
+    ax.set_yticks(np.arange(n_ingredients))
+    ax.set_yticklabels(ingredients_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
     fig.tight_layout()
     fig.savefig("../plots/ingredients_heatmap.png")
@@ -74,6 +74,7 @@ def plot_effects_heatmap(
     ax.set_ylabel('Effect')
     ax.set_title('Relative frequency of effects per step')
     ax.set_xticks(np.arange(num_steps))
+    ax.set_xticklabels(np.arange(num_steps) + 1)
     ax.set_yticks(np.arange(n_effects))
     ax.set_yticklabels(effects_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
@@ -108,12 +109,12 @@ def plot_profits_boxplot(profits: torch.Tensor):
     plt.show()
 
 
-def plot_sankey_diagram(
+def plot_recipes_sankey(
     recipes: torch.Tensor,
     profits: torch.Tensor,
     ingredients_name: list
 ):
-    """Plot a Sankey diagram for ingredient choices at each step.
+    """Plot a Sankey diagram for recipe at each step.
 
     Args:
         recipes (torch.Tensor): Tensor of recipes with ingredient ids.
@@ -152,7 +153,9 @@ def plot_sankey_diagram(
                 target = node_map[(step + 1, next_ingredient)]
 
                 # Add link value
-                value = float(profits[step + 1, sim])
+                value = float(
+                    profits[step + 1, sim] / profits.max(dim=1)[0][step]
+                )
                 link_values[(source, target)] = link_values.get(
                     (source, target),
                     0
@@ -189,5 +192,4 @@ def plot_sankey_diagram(
         )
     )
     fig.update_layout(title_text="Recipe Profit Sankey Diagram", font_size=12)
-    fig.savefig("../plots/recipes_sankey.png")
     fig.show()
