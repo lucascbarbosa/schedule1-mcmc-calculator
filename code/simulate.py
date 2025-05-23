@@ -146,7 +146,6 @@ class ChainSimulation(Database):
 
                     # Evolve chain state
                     current_state.walk(temperature)
-
                     print(f"TET: {round(time.time() - start_time, 3)}s")
 
         # Calculates objective
