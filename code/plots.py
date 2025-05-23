@@ -147,71 +147,61 @@ def plot_profit_lineplot(profits: torch.Tensor):
 
 def plot_recipes_sankey(
     recipes: torch.Tensor,
-    profits: torch.Tensor,
     ingredients_name: list
 ):
-    """Plot a Sankey diagram for recipe at each step.
+    """Plot a Sankey diagram for the last step of recipes.
+
+    Each node is an ingredient at a recipe position.
+    Each link connects ingredient at position i to ingredient at position i+1,
+    and its value is the number of recipes that contain both ingredients at
+    those positions.
 
     Args:
-        recipes (torch.Tensor): Tensor of recipes with ingredient ids.
-        profits (torch.Tensor): Tensor of profit values.
-        ingredients_name (list): List of ingredients name.
+        recipes (torch.Tensor): Tensor of recipes with ingredient ids
+        (steps, recipe_size, batch_size).
+        ingredients_name (list): List of ingredient names.
     """
-    # Fetch dimensions
-    n_steps, n_batches = recipes.shape
+    # Use only the last step
+    last_step = recipes[-1]  # shape: (recipe_size, batch_size)
+    recipe_size, n_recipes = last_step.shape
     n_ingredients = len(ingredients_name)
 
-    # Build node labels
+    # Build node labels: "Ingredient (pos i)"
     node_labels = []
     node_map = {}
-    ingridients_id = np.arange(n_ingredients)
-    for step in range(n_steps):
-        for ingredient in ingridients_id:
-            if ingredient < n_ingredients:
-                label = ingredients_name[ingredient]
-                node_map[(step, ingredient)] = len(node_labels)
-                node_labels.append(label)
+    for pos in range(recipe_size):
+        for ing_id in range(n_ingredients):
+            label = ingredients_name[ing_id]
+            node_map[(pos, ing_id)] = len(node_labels)
+            node_labels.append(label)
 
-    # Accumulate links weighted by profit at target step
+    # Count links between positions i and i+1
     link_values = {}
-    for sim in range(n_batches):
-        for step in range(n_steps - 1):
-            # Current and next ingredient
-            # (step, ingredient) -> (step + 1, next_ingredient)
-            current_ingredient = recipes[step, sim].item()
-            next_ingredient = recipes[step + 1, sim].item()
-            if (
-                next_ingredient < n_ingredients and
-                current_ingredient < n_ingredients
-            ):
-                # Get source and target node indices
-                source = node_map[(step, current_ingredient)]
-                target = node_map[(step + 1, next_ingredient)]
+    for sim in range(n_recipes):
+        for pos in range(recipe_size - 1):
+            ing_i = last_step[pos, sim].item()
+            ing_j = last_step[pos + 1, sim].item()
+            if ing_i < n_ingredients and ing_j < n_ingredients:
+                source = node_map[(pos, ing_i)]
+                target = node_map[(pos + 1, ing_j)]
+                link_values[
+                    (source, target)
+                ] = link_values.get((source, target), 0) + 1
 
-                # Add link value
-                value = float(
-                    profits[step + 1, sim] / profits.max(dim=1)[0][step + 1]
-                )
-                link_values[(source, target)] = link_values.get(
-                    (source, target),
-                    0
-                ) + value
+    if not link_values:
+        print("No links to plot.")
+        return
 
     sources, targets, values = zip(
-        *[
-            (s, t, v) for (s, t), v in link_values.items()
-        ]
+        *[(s, t, v) for (s, t), v in link_values.items()]
     )
     values = np.array(values)
     values_scaled = values / values.max()
     colors = [
-        f'rgba({int(255 * (1 - v))},'
-        f'{int(255 * (1 - v))},'
-        f'{int(255 * (1 - v))}, 0.5)'
+        f'rgba({int(255 * (1 - v))},{int(255 * (1 - v))},{int(255 * (1 - v))}, 0.5)'
         for v in values_scaled
     ]
 
-    # Plot
     fig = go.Figure(
         go.Sankey(
             node=dict(
@@ -230,8 +220,7 @@ def plot_recipes_sankey(
     fig.update_layout(
         width=1200,
         height=600,
-        title_text="Recipe Profit Sankey Diagram",
+        title_text="Sankey Diagram of Ingredients per recipe position (at last step)",
         font_size=12
     )
-    fig.write_image("../plots/recipe_sankey.svg")
-    fig.show()
+    fig.write_image("../plots/recipes_sankey.svg")
