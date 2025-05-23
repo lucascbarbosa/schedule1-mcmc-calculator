@@ -42,7 +42,7 @@ def plot_ingredients_heatmap(
     ax.set_yticklabels(ingredients_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
     fig.tight_layout()
-    fig.savefig("../plots/ingredients_heatmap.png")
+    fig.savefig("../plots/ingredients_heatmap.svg")
     plt.show()
 
 
@@ -79,7 +79,7 @@ def plot_effects_heatmap(
     ax.set_yticklabels(effects_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
     fig.tight_layout()
-    fig.savefig("../plots/effects_heatmap.png")
+    fig.savefig("../plots/effects_heatmap.svg")
     plt.show()
 
 
@@ -105,7 +105,7 @@ def plot_profits_boxplot(profits: torch.Tensor):
     ax.set_title('Profit distribution per step')
     ax.set_xlim(0.5, num_steps + 0.5)
     fig.tight_layout()
-    fig.savefig("../plots/profit_boxplot.png")
+    fig.savefig("../plots/profit_boxplot.svg")
     plt.show()
 
 
@@ -121,9 +121,9 @@ def plot_recipes_sankey(
         profits (torch.Tensor): Tensor of profit values.
         ingredients_name (list): List of ingredients name.
     """
+    # Fetch dimensions
     num_steps, num_simulations = recipes.shape
     n_ingredients = len(ingredients_name)
-    recipes = recipes.int()
 
     # Build node labels
     node_labels = []
@@ -189,7 +189,13 @@ def plot_recipes_sankey(
                 value=values,
                 color=colors,
             )
-        )
+        ),
     )
-    fig.update_layout(title_text="Recipe Profit Sankey Diagram", font_size=12)
+    fig.update_layout(
+        width=1200,
+        height=600,
+        title_text="Recipe Profit Sankey Diagram",
+        font_size=12
+    )
+    fig.write_image("../plots/recipe_sankey.svg")
     fig.show()

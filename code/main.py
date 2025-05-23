@@ -3,6 +3,7 @@ from plots import (
     plot_ingredients_heatmap,
     plot_effects_heatmap,
     plot_profits_boxplot,
+    plot_recipes_sankey
 )
 from simulate import ChainSimulation
 
@@ -34,9 +35,9 @@ results_data, results_opt = chain.optimize_recipe(
     base_product="OG Kush",
     objective_function='profit',
     num_simulations=1,
-    batch_size=15_000,
+    batch_size=1000,
     num_steps=7,
-    T0=10.0
+    T0=5.0
 )
 print(
 f"""
@@ -62,4 +63,10 @@ plot_effects_heatmap(
 
 plot_profits_boxplot(
     profits=results_data['profits'],
+)
+
+plot_recipes_sankey(
+    profits=results_data['profits'],
+    recipes=results_data['recipes'],
+    ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
 )
