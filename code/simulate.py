@@ -1,18 +1,18 @@
 """Script to create Mixing Chain."""
 import time
 import torch
-from tensors import DatabaseTensors, State
+from tensors import Database, State
 from typing import List, Tuple
 
 
-class ChainSimulation(DatabaseTensors):
+class ChainSimulation(Database):
     """Class to simulate the mixing chain."""
     def _init__(self):
         """___init__."""
-        # Instantiate DatabaseTensors
+        # Instantiate Database
         super().__init__()
 
-    def _encode_recipe(self, recipe: List[str]) -> torch.Tensor:
+    def _encode_recipes(self, recipe: List[str]) -> torch.Tensor:
         """Convert from ingredients name to id."""
         name_to_id = self.ingredients_df.set_index(
             "ingredient_name")["ingredient_id"].to_dict()
@@ -39,7 +39,7 @@ class ChainSimulation(DatabaseTensors):
                 raise ValueError(f"Effect name {n} is incorrect!")
         return effects_encoded
 
-    def _decode_recipe(self, recipe: torch.Tensor):
+    def _decode_recipes(self, recipe: torch.Tensor):
         """Convert from ingredients id to name."""
         id_list = recipe.tolist()
         id_to_name = self.ingredients_df.set_index(
@@ -57,7 +57,7 @@ class ChainSimulation(DatabaseTensors):
             self.effects_df["effect_id"].isin(effects_id.tolist())
         ]["effect_name"].tolist()
 
-    def optimize_recipe(
+    def optimize_recipes(
         self,
         base_product: str,
         n_batches: int,
@@ -91,17 +91,17 @@ class ChainSimulation(DatabaseTensors):
 
         # Output tensors
         effects = torch.zeros(
-            n_steps, n_batches * self.batch_size, self.n_effects,
+            (n_steps, self.n_effects, n_batches * self.batch_size),
             dtype=torch.float32,
             device="cpu"
         )
         costs = torch.zeros(
-            n_steps, n_batches * self.batch_size,
+            (n_steps, n_batches * self.batch_size),
             dtype=torch.float32,
             device="cpu"
         )
         values = torch.zeros(
-            n_steps, n_batches * self.batch_size,
+            (n_steps, n_batches * self.batch_size),
             dtype=torch.float32,
             device="cpu"
         )
@@ -117,34 +117,32 @@ class ChainSimulation(DatabaseTensors):
                 )
 
                 for t in range(n_steps):
-                    self.temperature = (
+                    temperature = (
                         initial_temperature /
                         torch.log(torch.tensor(t) + 1.01)
                     )
                     start_time = time.time()
                     print(f"Batch {b + 1}: Step {t + 1}")
 
-                    # Create neighbours
-                    neighbour_state = current_state.create_neighbour_recipe()
-                    print(current_state.recipes)
-                    print(neighbour_state)
+                    # Evolve chain state
+                    current_state.walk(temperature)
 
-        #             # Store effects
-        #             effects[
-        #                 t, b * self.batch_size:(b + 1) * self.batch_size, :
-        #             ] = current_state.active_effects.T
+                    # Store effects
+                    effects[
+                        t, :, b * self.batch_size:(b + 1) * self.batch_size
+                    ] = current_state.get_effects()
 
-        #             # Store costs
-        #             costs[
-        #                 t, b * self.batch_size:(b + 1) * self.batch_size
-        #             ] = current_state.current_cost()
+                    # Store costs
+                    costs[
+                        t, b * self.batch_size:(b + 1) * self.batch_size
+                    ] = current_state.cost()
 
-        #             # Store values
-        #             values[
-        #                 t, b * self.batch_size:(b + 1) * self.batch_size
-        #             ] = current_state.current_value()
-        #             print(f"TET: {round(time.time() - start_time, 3)}s")
-        #             t += 1
+                    # Store values
+                    values[
+                        t, b * self.batch_size:(b + 1) * self.batch_size
+                    ] = current_state.value()
+                    print(f"TET: {round(time.time() - start_time, 3)}s")
+                    t += 1
 
         # # Calculates objective
         # profits = values - costs
@@ -152,7 +150,7 @@ class ChainSimulation(DatabaseTensors):
         # # Fetch optimal recipe
         # id_opt = torch.where(profits == profits.max())
         # opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
-        # recipe_opt = self._decode_recipe(recipes[:opt_step + 1, opt_sim])
+        # recipe_opt = self._decode_recipes(recipes[:opt_step + 1, opt_sim])
         # effects_opt = self._decode_effects(effects[opt_step, opt_sim, :])
         # cost_opt = float(costs[opt_step, opt_sim])
         # value_opt = float(values[opt_step, opt_sim])

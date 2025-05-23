@@ -19,7 +19,7 @@ chain = ChainSimulation()
 #     'Banana',
 #     'Cuke',
 # ]
-# result = chain.mix_recipe("OG Kush", recipe)
+# result = chain.mix_recipes("OG Kush", recipe)
 # print(
 # f"""
 # Receita: {recipe}
@@ -30,7 +30,7 @@ chain = ChainSimulation()
 # """
 # )
 
-chain.optimize_recipe(
+chain.optimize_recipes(
     base_product="OG Kush",
     n_batches=1,
     batch_size=10,
