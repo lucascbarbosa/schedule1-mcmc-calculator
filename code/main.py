@@ -11,9 +11,8 @@ from simulate import ChainSimulation
 chain = ChainSimulation()
 results_data, results_opt = chain.optimize_recipes(
     base_product="OG Kush",
-    n_batches=1,
-    batch_size=20_000,
-    n_steps=50,
+    batch_size=200_000,
+    n_steps=100,
     initial_temperature=1.0,
 )
 print(

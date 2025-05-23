@@ -60,22 +60,22 @@ class ChainSimulation(Database):
     def optimize_recipes(
         self,
         base_product: str,
-        n_batches: int,
         batch_size: int,
         n_steps: int,
         recipe_size: int = 7,
+        n_batches: int = 1,
         initial_temperature: float = 1.0,
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
         Args:
             base_product (str): Base product.
-            n_batches (int): Number of batches simulated.
             batch_size (int): Number of recipes in batch.
             distribution.
             n_steps (int): Number of steps simulation steps.
             recipe_size (int, optional): Number of ingredients in recipe.
             Defaults to 7.
+            n_batches (int): Number of batches simulated.
             initial_temperature (float, optional): Initial value for Boltzmann
             temperature
             parameter. Defaults to 1.0.
