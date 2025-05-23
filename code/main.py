@@ -60,6 +60,6 @@ plot_effects_heatmap(
     effects_name=chain.effects_df['effect_name'].tolist(),
 )
 
-# plot_profits_boxplot(
-#     profits=results_data['profits'],
-# )
+plot_profits_boxplot(
+    profits=results_data['profits'],
+)
