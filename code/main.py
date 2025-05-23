@@ -1,8 +1,8 @@
 """Main script."""
 from plots import (
-    visualize_ingredients_choice,
-    visualize_effects,
-    visualize_profits
+    plot_ingredients_heatmap,
+    plot_effects_heatmap,
+    plot_profits_boxplot,
 )
 from simulate import ChainSimulation
 
@@ -35,7 +35,7 @@ results_data, results_opt = chain.optimize_recipe(
     objective_function='profit',
     num_simulations=1,
     batch_size=15_000,
-    num_steps=10,
+    num_steps=7,
     T0=10.0
 )
 print(
@@ -49,15 +49,17 @@ Lucro: {results_opt["profit"]}
 """
 )
 
-# Plot simulation graphs
-visualize_ingredients_choice(
-    results_data['recipes'],
-    n_ingredients=chain.n_ingredients,
-    ingredients_df=chain.ingredients_df,
+# Plot results
+plot_ingredients_heatmap(
+    recipes=results_data['recipes'],
+    ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
 )
-visualize_profits(
-    profits=results_data['profits'],
-)
-visualize_effects(
+
+plot_effects_heatmap(
     effects=results_data['effects'],
+    effects_name=chain.effects_df['effect_name'].tolist(),
 )
+
+# plot_profits_boxplot(
+#     profits=results_data['profits'],
+# )
