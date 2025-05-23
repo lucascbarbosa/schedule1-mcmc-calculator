@@ -98,7 +98,7 @@ def plot_profits_boxplot(profits: torch.Tensor):
         positions=steps,
         widths=0.6,
         patch_artist=True,
-        showfliers=False
+        showfliers=True
     )
     ax.set_xlabel('Step')
     ax.set_ylabel('Profit')
