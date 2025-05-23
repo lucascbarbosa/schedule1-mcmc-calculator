@@ -113,8 +113,19 @@ class ChainSimulation(DatabaseTensors):
         acceps = torch.clamp(
             torch.exp((neighbours_obj - current_obj) / T), max=1.0
         )
+
+        # In first step, removing ingredient is impossible
         if step == 0:
             acceps[-1, :] = 0.0
+
+        # If ingredients count reaches 7, only removing ingredient is possible
+        current_state.ingredients_count.sum(dim=0)
+        sum_ingredients = current_state.ingredients_count.sum(dim=0)
+        sum_mask = sum_ingredients >= 7
+        filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
+        acceps[-1, filtered_batch_ids] = 1.0
+        acceps[:-1, filtered_batch_ids] = 0.0
+
         return acceps
 
     def compute_ingredient_prob(
@@ -197,16 +208,19 @@ class ChainSimulation(DatabaseTensors):
             device="cpu") * self.n_ingredients
         effects = torch.zeros(
             num_steps, num_simulations * self.batch_size, self.n_effects,
-            dtype=torch.float32, device="cpu"
+            dtype=torch.float32,
+            device="cpu"
         )
         costs = torch.zeros(
             num_steps, num_simulations * self.batch_size,
             dtype=torch.float32,
-            device="cpu")
+            device="cpu"
+        )
         values = torch.zeros(
             num_steps, num_simulations * self.batch_size,
             dtype=torch.float32,
-            device="cpu")
+            device="cpu"
+        )
 
         # Generate all possible ingredients tensor.
         all_ingredients = torch.arange(
