@@ -1,16 +1,16 @@
 """Script to create Mixing Chain."""
 import time
 import torch
-from tensors import DatabaseTensors, StateTensors
+from tensors import DatabaseTensors, State
 from typing import List, Tuple
 
 
 class ChainSimulation(DatabaseTensors):
     """Class to simulate the mixing chain."""
-    def _init__(self, torch_device: str):
+    def _init__(self):
         """___init__."""
         # Instantiate DatabaseTensors
-        super().__init__(torch_device=torch_device)
+        super().__init__()
 
     def _encode_recipe(self, recipe: List[str]) -> torch.Tensor:
         """Convert from ingredients name to id."""
@@ -62,8 +62,9 @@ class ChainSimulation(DatabaseTensors):
         base_product: str,
         n_batches: int,
         batch_size: int,
+        n_steps: int,
         recipe_size: int = 7,
-        T0: float = 1.0,
+        initial_temperature: float = 1.0,
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
@@ -72,9 +73,10 @@ class ChainSimulation(DatabaseTensors):
             n_batches (int): Number of batches simulated.
             batch_size (int): Number of recipes in batch.
             distribution.
+            n_steps (int): Number of steps simulation steps.
             recipe_size (int, optional): Number of ingredients in recipe.
             Defaults to 7.
-            T0 (float, optional): Initial value for Boltzmann temperature
+            initial_temperature (float, optional): Initial value for Boltzmann temperature
             parameter. Defaults to 1.0.
 
         Returns:
@@ -85,21 +87,21 @@ class ChainSimulation(DatabaseTensors):
         self.batch_size = batch_size
         self.recipe_size = recipe_size
         self.base_product = base_product
-        self.T0 = T0
+        self.initial_temperature = initial_temperature
 
         # Output tensors
         effects = torch.zeros(
-            recipe_size, n_batches * self.batch_size, self.n_effects,
+            n_steps, n_batches * self.batch_size, self.n_effects,
             dtype=torch.float32,
             device="cpu"
         )
         costs = torch.zeros(
-            recipe_size, n_batches * self.batch_size,
+            n_steps, n_batches * self.batch_size,
             dtype=torch.float32,
             device="cpu"
         )
         values = torch.zeros(
-            recipe_size, n_batches * self.batch_size,
+            n_steps, n_batches * self.batch_size,
             dtype=torch.float32,
             device="cpu"
         )
@@ -108,19 +110,24 @@ class ChainSimulation(DatabaseTensors):
             for b in range(n_batches):
                 torch.cuda.empty_cache()
                 # Define current state
-                current_state = StateTensors(
+                current_state = State(
                     base_product=base_product,
                     batch_size=self.batch_size,
-                    torch_device=self.device,
                     recipe_size=self.recipe_size,
                 )
 
-                for t in range(recipe_size):
+                for t in range(n_steps):
+                    self.temperature = (
+                        initial_temperature /
+                        torch.log(torch.tensor(t) + 1.01)
+                    )
                     start_time = time.time()
                     print(f"Batch {b + 1}: Step {t + 1}")
 
                     # Create neighbours
-                    neighbours_state = current_state.create_neighbours()
+                    neighbour_state = current_state.create_neighbour_recipe()
+                    print(current_state.recipes)
+                    print(neighbour_state)
 
         #             # Store effects
         #             effects[

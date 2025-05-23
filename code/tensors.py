@@ -7,7 +7,7 @@ from typing import Tuple
 
 class DatabaseTensors:
     """Class to create tensors from dataframes."""
-    def __init__(self, torch_device: str):
+    def __init__(self):
         """Convert ingredients, effects and products names to id."""
         # Load data
         dir = Path(__file__).parent
@@ -60,7 +60,7 @@ class DatabaseTensors:
         self.rules_df = rules_df
 
         # Set torch device
-        self.device = torch_device
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Fetch ingredients arrays
         self.create_ingredients_tensors()
@@ -110,7 +110,7 @@ class DatabaseTensors:
             ] = 0
 
 
-class StateTensors(DatabaseTensors):
+class State(DatabaseTensors):
     """Tensors related to chain state for batched simulation.
 
     The ingredients array maps the ingredients used in the recipe, i.e.,
@@ -125,7 +125,6 @@ class StateTensors(DatabaseTensors):
         base_product: str,
         batch_size: int,
         recipe_size: int,
-        torch_device: str,
     ):
         """Create initial ingredients and effects tensors.
 
@@ -133,13 +132,12 @@ class StateTensors(DatabaseTensors):
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
             recipe_size (int): Number of steps in simulation.
-            torch_device (torch.device): Torch device (cpu or cuda).
 
         Raises:
             ValueError: If chosen based product.
         """
         # Define global variables
-        super().__init__(torch_device=torch_device)
+        super().__init__()
         self.batch_size = batch_size
         self.recipe_size = recipe_size
 
@@ -178,10 +176,10 @@ class StateTensors(DatabaseTensors):
         ] = 1
 
         # Mix recipe to generate resultant active effects
-        recipes = self.get_state()
+        recipes = self.get_recipe()
         self.active_effects = self.compute_active_effects(recipes)
 
-    def get_state(self) -> torch.Tensor:
+    def get_recipe(self) -> torch.Tensor:
         """Get current state (recipes) tensor."""
         return self.recipes.clone()
 
@@ -296,9 +294,9 @@ class StateTensors(DatabaseTensors):
 
         return effects_result
 
-    def create_neighbour_state(self) -> torch.Tensor:
+    def create_neighbour_recipe(self) -> torch.Tensor:
         """Create neigbour recipes from current recipe."""
-        neighbour_recipe = self.get_state()
+        neighbour_recipe = self.get_recipe()
         # Randomly choose ingredients to change id
         change_ids = torch.randint(
             0, neighbour_recipe.shape[0],
@@ -366,10 +364,10 @@ class StateTensors(DatabaseTensors):
     def evolve_states(self, temperature: torch.Tensor):
         """Evolve recipes states using Metropolis-Hastings."""
         # Current recipes
-        current_state = self.get_state()
+        current_state = self.get_recipe()
 
         # Create neighbour states
-        neighbour_stat = self.create_neighbour_state()
+        neighbour_stat = self.create_neighbour_recipe()
 
         # Compute acceptances for each neighbour
         neighbour_accep = self.neighbour_acceptance(
@@ -406,6 +404,3 @@ class StateTensors(DatabaseTensors):
 
         return result_effects
 
-
-state = StateTensors("OG Kush", 5, "cuda", 7)
-state.evolve_states(1)

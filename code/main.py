@@ -8,8 +8,7 @@ from plots import (
 from simulate import ChainSimulation
 
 # Optimize recipes
-torch_device = "cuda"
-chain = ChainSimulation(torch_device)
+chain = ChainSimulation()
 # recipe = [
 #     'Banana',
 #     'Gasoline',
@@ -35,8 +34,9 @@ chain.optimize_recipe(
     base_product="OG Kush",
     n_batches=1,
     batch_size=10,
+    n_steps=5,
     recipe_size=3,
-    T0=1.0,
+    initial_temperature=1.0,
 )
 # print(
 # f"""
