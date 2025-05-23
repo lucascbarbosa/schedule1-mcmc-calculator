@@ -10,15 +10,15 @@ class DatabaseTensors:
     def __init__(self, torch_device: str):
         """Convert ingredients, effects and products names to id."""
         # Load data
-        current_dir = Path(__file__).parent
+        dir = Path(__file__).parent
         ingredients_df = pd.read_json(
-            current_dir.parent / "data/ingredients.json")
+            dir.parent / "data/ingredients.json")
         rules_df = pd.read_json(
-            current_dir.parent / "data/rules.json")
+            dir.parent / "data/rules.json")
         effects_df = pd.read_json(
-            current_dir.parent / "data/effects.json")
+            dir.parent / "data/effects.json")
         products_df = pd.read_json(
-            current_dir.parent / "data/products.json")
+            dir.parent / "data/products.json")
 
         ingredient_to_id = ingredients_df.reset_index().set_index(
             "name")["index"]
@@ -125,7 +125,7 @@ class StateTensors(DatabaseTensors):
         base_product: str,
         batch_size: int,
         torch_device: str,
-        num_steps: int,
+        recipe_size: int,
     ):
         """Create initial ingredients and effects tensors.
 
@@ -133,7 +133,7 @@ class StateTensors(DatabaseTensors):
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
             torch_device (torch.device): Torch device (cpu or cuda).
-            num_steps (int): Number of steps in simulation.
+            recipe_size (int): Number of steps in simulation.
 
         Raises:
             ValueError: If chosen based product.
@@ -141,7 +141,7 @@ class StateTensors(DatabaseTensors):
         # Define global variables
         super().__init__(torch_device=torch_device)
         self.batch_size = batch_size
-        self.num_steps = num_steps
+        self.recipe_size = recipe_size
 
         # Get base product cost, value and effect
         base_product = self.products_df[
@@ -150,131 +150,80 @@ class StateTensors(DatabaseTensors):
             raise ValueError(f"Base product {base_product} is invalid!")
         self.product_value = base_product["value"].iloc[0]
 
-        # Create an integer ingredients array.
-        # Each element of the array represents how many times that
-        # ingredient was used.
-        self.ingredients_count = torch.zeros(
-            (self.n_ingredients, self.batch_size),
+        # Create a random recipe tensor of shape (recipe_size, batch_size)
+        # where a value encodes the ingredient id at a given recipe step
+        # and a batch simulation
+        self.recipes = torch.randint(
+            0, self.n_ingredients,
+            (self.recipe_size, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
 
-        # Create a sparse binary effects array.
-        # Earch element of the array indicates if effect is present.
+        # Create a sparse binary effects tensor of shape (recipe_size,
+        # batch_size, n_effects) where a value indicantes if the effect at
+        # a given recipe step and batch simulation is active
         self.active_effects = torch.zeros(
-            (self.n_effects, self.batch_size),
+            (self.recipe_size + 1, self.n_effects, self.batch_size),
             dtype=torch.float32,
             device=self.device
         )
+
+        # Define initial effect as the effect of the base product
         self.active_effects[
+            0,
             self.effects_df["effect_name"] ==
-            base_product["effect_name"].iloc[0], :
+            base_product["effect_name"].iloc[0],
+            :,
         ] = 1
 
-        # Path of ingredients count and active effects
-        self.ingredients_count_path = torch.zeros(
-            (self.num_steps + 1, self.n_ingredients, self.batch_size),
-            dtype=torch.float32,
-            device=self.device
-        )
-        self.ingredients_count_path[0, :, :] = self.ingredients_count.clone()
-        self.active_effects_path = torch.zeros(
-            (self.num_steps + 1, self.n_effects, self.batch_size),
-            dtype=torch.float32,
-            device=self.device
-        )
-        self.active_effects_path[0, :, :] = self.active_effects.clone()
+        # Mix recipe to generate resultant active effects
+        self.apply_recipes()
 
-        # Path length
-        self.path_length = torch.zeros(
-            self.batch_size,
-            dtype=torch.int32,
-            device=self.device
-        )
+    def get_recipes(self) -> torch.Tensor:
+        """Get current recipe tensor."""
+        return self.recipes.clone()
 
-        # Previous ingredients count and active effects
-        self.previous_ingredients_count = self.ingredients_count.clone()
-        self.previous_active_effects = self.active_effects.clone()
+    def get_active_effects(self) -> torch.Tensor:
+        """Get current active effects tensor."""
+        return self.active_effects.clone()
 
-    def get_current_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get current ingredients and effects tensors."""
-        return self.ingredients_count.clone(), self.active_effects.clone()
+    def count_ingredients(self, recipe: torch.Tensor) -> torch.Tensor:
+        """Count each ingredient in recipe."""
+        return torch.bincount(recipe, minlength=self.n_ingredients)
 
-    def get_previous_tensors(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get previous ingredients and effects tensors."""
+    def cost(self) -> float:
+        """Calculates the cost of the recipe."""
+        ingredients_count = self.count_ingredients()
         return (
-            self.previous_ingredients_count.clone(),
-            self.previous_active_effects.clone()
+            self.ingredients_cost @ ingredients_count
         )
 
-    def current_cost(self) -> float:
-        """Calculates the cost of current state."""
-        return (
-            self.ingredients_cost @ self.ingredients_count
-        )
-
-    def previous_cost(self) -> float:
-        """Calculates the cost of previous state."""
-        return (
-            self.ingredients_cost @ self.previous_ingredients_count
-        )
-
-    def current_value(self) -> float:
-        """Calculates sell value of current state."""
+    def value(self) -> float:
+        """Calculates sell value of the resulting product."""
         mult = self.effects_multiplier @ self.active_effects
         return (1 + mult) * float(self.product_value)
 
-    def previous_value(self) -> float:
-        """Calculates sell value of previous state."""
-        mult = self.effects_multiplier @ self.previous_active_effects
-        return (1 + mult) * float(self.product_value)
-
-    def current_profit(self) -> float:
+    def profit(self) -> float:
         """Calculates profit of current state."""
-        return self.current_value() - self.current_cost()
+        return self.value() - self.cost()
 
-    def previous_profit(self) -> float:
-        """Calculates profit of previous state."""
-        return self.previous_value() - self.previous_cost()
-
-    def current_effects_distance(self, desired_effects: torch.Tensor) -> float:
+    def effects_distance(self, desired_effects: torch.Tensor) -> float:
         """Distance current state active and desired effects."""
         return (
             -torch.sum((self.active_effects - desired_effects)**2, dim=0)
         )
 
-    def previous_effects_distance(self, desired_effects: torch.Tensor) -> float:
-        """Distance previous state active and desired effects."""
-        return (
-            -torch.sum(
-                (self.previous_active_effects - desired_effects)**2,
-                dim=0
-            )
-        )
-
-    def increment_ingredient_count(
-        self,
-        ingredients: torch.Tensor,
-    ) -> torch.Tensor:
-        """Add mixed ingredient to the count."""
-        # Clone tensors
-        ingredients_count = self.ingredients_count.clone()
-
-        # Increment ingredients count
-        ingredients_count[
-            ingredients,
-            torch.arange(ingredients.shape[0])
-        ] += 1.0
-        self.ingredients_count = ingredients_count
+    def _boltzmann_temperature(self, step: int):
+        """Calculate temperature parameter of Boltzmann distribution."""
+        return self.T0 / torch.log(torch.tensor(step + 1.01))
 
     def apply_ingredients_effect(
         self,
         ingredients: torch.Tensor,
+        active_effects: torch.Tensor,
     ) -> torch.Tensor:
         """Apply effect from added ingredients."""
-        # Clone tensors
-        active_effects = self.active_effects.clone()
-
         # Check if sum of effects is leq 8
         sum_effects = active_effects.sum(dim=0)
         sum_mask = sum_effects < 8
@@ -284,17 +233,14 @@ class StateTensors(DatabaseTensors):
         filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
         filtered_effect_ids = effect_ids[sum_mask]
         active_effects[filtered_effect_ids.to(int), filtered_batch_ids] = 1
-        self.active_effects = active_effects
+        return active_effects
 
     def apply_effects_rules(
         self,
         ingredients: torch.Tensor,
+        active_effects: torch.Tensor,
     ) -> torch.Tensor:
         """Apply effects transition rules for each ingredient."""
-        # Clone current and past effects
-        active_effects = self.active_effects.clone()
-        # shape: (n_effects, batch_size)
-
         # Fetch rules from each added ingredient
         rules_batch = self.rules[ingredients]
         # shape: (batch_size, n_effects, n_effects)
@@ -327,95 +273,111 @@ class StateTensors(DatabaseTensors):
                 ingredient_ids
             ] = 1.0
 
-        self.active_effects = effects_result
+        return effects_result
 
-    def mix_ingredient(self, ingredients: torch.Tensor):
-        """Mix products with ingredients."""
-        ingredients = ingredients.clone()
-
-        # If ingredient has to be removed, set it to 0 (hardcoded)
-        remove_ingredients_mask = (
-            ingredients == self.n_ingredients).to(self.device)
-        ingredients[remove_ingredients_mask] = 0
-        # Ids of ingredients to be removed and added
-        removed_ingredients_ids = torch.nonzero(
-            remove_ingredients_mask,
-            as_tuple=False).ravel()
-        added_ingredients_ids = torch.nonzero(
-            ~remove_ingredients_mask,
-            as_tuple=False).ravel()
-
-        # Fetch pre mix state tensors
-        (
-            pre_mix_ingredients_count, pre_mix_active_effects
-        ) = self.get_current_tensors()
-
-        #  Increment ingredient count
-        self.increment_ingredient_count(ingredients)
-
+    def mix_ingredients(
+        self,
+        recipe_step: torch.Tensor,
+        effects_step: torch.Tensor
+    ) -> torch.Tensor:
+        """Mix products with ingredients in batch."""
         # Apply effects transition rules
-        self.apply_effects_rules(ingredients)
+        effects_result = self.apply_effects_rules(recipe_step, effects_step)
 
         # Apply ingredient effect
-        self.apply_ingredients_effect(ingredients)
+        effects_result = self.apply_ingredients_effect(
+            recipe_step, effects_result)
 
-        # Increment path length
-        self.path_length[added_ingredients_ids] += 1
-        self.path_length[removed_ingredients_ids] -= 1
-        self.path_length = torch.clamp(
-            self.path_length, min=0, max=self.num_steps
+        return effects_result
+
+    def create_neighbours(self) -> torch.Tensor:
+        """Create neigbour recipes from current recipe."""
+        neighbours_recipe = self.get_recipes()
+        # Randomly choose ingredients to change id
+        change_ids = torch.randint(
+            0, neighbours_recipe.shape[0],
+            (neighbours_recipe.shape[1],),
+            dtype=torch.int,
+            device=self.device
+        )
+        current_values = neighbours_recipe[
+            change_ids,
+            torch.arange(change_ids.shape[0])
+        ]
+
+        # Randomly generate new ingredient ids (different from the current one)
+        change_values = torch.randint(
+            0, self.n_ingredients - 1,
+            (neighbours_recipe.shape[1],),
+            dtype=torch.float32,
+            device=self.device
         )
 
-        # Restore previous state for any ingredients equal to 0
-        if removed_ingredients_ids.shape[0] > 0:
-            # Get previous state tensors
-            (
-                previous_ingredients_count, previous_active_effects
-            ) = self.get_previous_tensors()
+        # If new value >= current, increment by 1 to skip current value
+        mask = (change_values >= current_values)
+        change_values[mask] += 1
+        # Ensure new values do not exceed self.n_ingredients - 1
+        change_values = change_values.clamp(max=self.n_ingredients - 1)
+        neighbours_recipe[
+            change_ids,
+            torch.arange(change_ids.shape[0])
+        ] = change_values
+        return neighbours_recipe
 
-            # Restore previous ingredients count for removed ingredients
-            self.ingredients_count_path[
-                self.path_length[removed_ingredients_ids] - 1,
-                :,
-                removed_ingredients_ids
-            ] = 0.0
-            self.ingredients_count[
-                :,
-                removed_ingredients_ids
-            ] = previous_ingredients_count[:, removed_ingredients_ids]
+    def neighbours_acceptance(self, step: int) -> torch.Tensor:
+        """Calculates probability of choosing each ingredient.
 
-            # Restore previous active effects for removed ingredients
-            self.active_effects_path[
-                self.path_length[removed_ingredients_ids] - 1,
-                :,
-                removed_ingredients_ids
-            ] = 0.0
-            self.active_effects[
-                :,
-                removed_ingredients_ids
-            ] = previous_active_effects[:, removed_ingredients_ids]
+        This is a Boltzmann probability adjusted by the Metropoles-Hastings
+        acceptance parameter that takes into account the profit resulting from
+        adding that ingredient. The temperature parameter is computed via
+        simulated annealing with log schedule.
+        """
+        # Fetch current temperature parameter via log schedule
+        T = self._boltzmann_temperature(step)
 
-        if added_ingredients_ids.shape[0] > 0:
-            # Updated paths
-            self.ingredients_count_path[
-                self.path_length[added_ingredients_ids],
-                :,
-                added_ingredients_ids
-            ] = pre_mix_ingredients_count[
-                :, added_ingredients_ids
-            ].T
+        # Compute objective function for current and neighbour states
+        current_obj = self.profit()
+        neighbours_obj = self.neighbours_profit()
 
-            self.active_effects_path[
-                self.path_length[added_ingredients_ids],
-                :,
-                added_ingredients_ids
-            ] = pre_mix_active_effects[
-                :, added_ingredients_ids
-            ].T
+        # Compute acceptance probability
+        acceps = torch.clamp(
+            torch.exp((neighbours_obj - current_obj) / T), max=1.0
+        )
 
-        # Update previous state
-        self.previous_ingredients_count = self.ingredients_count_path[
-            self.path_length, :, torch.arange(self.path_length.shape[0])].T
+        return acceps
 
-        self.previous_active_effects = self.active_effects_path[
-            self.path_length, :, torch.arange(self.path_length.shape[0])].T
+    def evolve_states(self, step: int):
+        """Evolve recipes states."""
+        # Clone recipes state
+        current_state = self.get_recipes()
+
+        # Create neighbours
+        neighbours_state = self.create_neighbours(step)
+
+        # Compute acceptances for each neighbour
+        neighbours_accep = self.neighbours_acceptance(step)
+
+    def apply_recipes(self):
+        """Apply all recipes."""
+        # Clone recipe tensor
+        recipes = self.get_recipes()
+
+        # Clone active effects tensor
+        result_effects = self.get_active_effects()
+
+        # Mix each step of recipe
+        for step in range(1, recipes.shape[0]):
+            # Fetch recipes and effects step
+            recipe_step = recipes[step, :].int()
+            effects_step = result_effects[step - 1, :, :]
+
+            # Mix ingredients and store resultant active effects
+            result_effects[step, :, :] = self.mix_ingredients(
+                recipe_step, effects_step)
+
+        self.active_effects = result_effects
+
+
+state = StateTensors("OG Kush", 5, "cuda", 7)
+print(state.recipes)
+print(state.create_neighbours())

@@ -12,13 +12,13 @@ def plot_ingredients_heatmap(
     ):
     """Visualize ingredients relative frequency per step."""
     recipes = recipes.int()
-    num_steps = recipes.shape[0]
+    recipe_size = recipes.shape[0]
     n_ingredients = len(ingredients_name)
 
     # Calculate relative frequency of each ingredient per step
     ingredients_count = torch.stack([
         torch.bincount(recipes[step], minlength=n_ingredients)
-        for step in range(num_steps)
+        for step in range(recipe_size)
     ])
     ingredients_proportion = (
         ingredients_count /
@@ -36,8 +36,8 @@ def plot_ingredients_heatmap(
     ax.set_xlabel('Step')
     ax.set_ylabel('Ingredient')
     ax.set_title('Relative frequency of ingredient')
-    ax.set_xticks(np.arange(num_steps))
-    ax.set_xticklabels(np.arange(num_steps) + 1)
+    ax.set_xticks(np.arange(recipe_size))
+    ax.set_xticklabels(np.arange(recipe_size) + 1)
     ax.set_yticks(np.arange(n_ingredients))
     ax.set_yticklabels(ingredients_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
@@ -51,15 +51,15 @@ def plot_effects_heatmap(
     effects_name: List[str]
 ):
     """Visualize the relative frequency of each effect."""
-    num_steps = effects.shape[0]
+    recipe_size = effects.shape[0]
     n_effects = effects.shape[2]
 
     # Calculate mean presence of each effect per step
     effects_frequency = torch.zeros(
-        (num_steps, n_effects),
+        (recipe_size, n_effects),
         dtype=torch.float32
     )
-    for step in range(num_steps):
+    for step in range(recipe_size):
         effects_frequency[step] = effects[step].mean(dim=0).float()
 
     # Create heatmap
@@ -73,8 +73,8 @@ def plot_effects_heatmap(
     ax.set_xlabel('Step')
     ax.set_ylabel('Effect')
     ax.set_title('Relative frequency of effects per step')
-    ax.set_xticks(np.arange(num_steps))
-    ax.set_xticklabels(np.arange(num_steps) + 1)
+    ax.set_xticks(np.arange(recipe_size))
+    ax.set_xticklabels(np.arange(recipe_size) + 1)
     ax.set_yticks(np.arange(n_effects))
     ax.set_yticklabels(effects_name)
     fig.colorbar(im, ax=ax, label='Mean relative frequency')
@@ -85,14 +85,14 @@ def plot_effects_heatmap(
 
 def plot_profits_boxplot(profits: torch.Tensor):
     """Visualize profit distribution for each step using box plots."""
-    num_steps = profits.shape[0]
-    profits = profits.cpu().numpy()  # shape: (num_steps, num_samples)
+    recipe_size = profits.shape[0]
+    profits = profits.cpu().numpy()  # shape: (recipe_size, n_samples)
 
-    steps = np.arange(1, num_steps + 1)
+    steps = np.arange(1, recipe_size + 1)
 
     fig, ax = plt.subplots(figsize=(12, 6))
     # Create a list of arrays, one per step, for boxplot
-    data = [profits[step] for step in range(num_steps)]
+    data = [profits[step] for step in range(recipe_size)]
     ax.boxplot(
         data,
         positions=steps,
@@ -103,7 +103,7 @@ def plot_profits_boxplot(profits: torch.Tensor):
     ax.set_xlabel('Step')
     ax.set_ylabel('Profit')
     ax.set_title('Profit distribution per step')
-    ax.set_xlim(0.5, num_steps + 0.5)
+    ax.set_xlim(0.5, recipe_size + 0.5)
     fig.tight_layout()
     fig.savefig("../plots/profit_boxplot.svg")
     plt.show()
@@ -122,14 +122,14 @@ def plot_recipes_sankey(
         ingredients_name (list): List of ingredients name.
     """
     # Fetch dimensions
-    num_steps, num_simulations = recipes.shape
+    recipe_size, n_batches = recipes.shape
     n_ingredients = len(ingredients_name)
 
     # Build node labels
     node_labels = []
     node_map = {}
     ingridients_id = np.arange(n_ingredients)
-    for step in range(num_steps):
+    for step in range(recipe_size):
         for ingredient in ingridients_id:
             if ingredient < n_ingredients:
                 label = ingredients_name[ingredient]
@@ -138,8 +138,8 @@ def plot_recipes_sankey(
 
     # Accumulate links weighted by profit at target step
     link_values = {}
-    for sim in range(num_simulations):
-        for step in range(num_steps - 1):
+    for sim in range(n_batches):
+        for step in range(recipe_size - 1):
             # Current and next ingredient
             # (step, ingredient) -> (step + 1, next_ingredient)
             current_ingredient = recipes[step, sim].item()
