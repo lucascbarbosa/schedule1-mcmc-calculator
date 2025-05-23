@@ -46,7 +46,7 @@ class ChainSimulation(Database):
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
         for ingredient_id in id_list:
-            if ingredient_id != self.n_ingredients: 
+            if ingredient_id != self.n_ingredients:
                 names.append(id_to_name[ingredient_id])
         return names
 
@@ -76,7 +76,8 @@ class ChainSimulation(Database):
             n_steps (int): Number of steps simulation steps.
             recipe_size (int, optional): Number of ingredients in recipe.
             Defaults to 7.
-            initial_temperature (float, optional): Initial value for Boltzmann temperature
+            initial_temperature (float, optional): Initial value for Boltzmann
+            temperature
             parameter. Defaults to 1.0.
 
         Returns:
