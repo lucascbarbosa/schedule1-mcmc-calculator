@@ -29,7 +29,7 @@ chain = ChainSimulation()
 
 simulation_data = {
     'base_product': chain.products_df['product_name'].to_numpy(),
-    'recipe_size': [7, 8, 9, 10, 11, 12, 13, 14, 15],
+    'recipe_size': [5, 6, 7, 8, 9, 10],
 }
 
 # Fixed parameters
@@ -85,34 +85,29 @@ for (
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
-        initial_temperature=initial_temperature
     )
     plot_ingredients_lineplot(
         recipes=results_data['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
-        initial_temperature=initial_temperature
     )
     plot_effects_lineplot(
         effects=results_data['effects'],
         effects_name=chain.effects_df['effect_name'].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
-        initial_temperature=initial_temperature
     )
     plot_profit_lineplot(
         profits=results_data['profits'],
         base_product=base_product,
         recipe_size=recipe_size,
-        initial_temperature=initial_temperature
     )
     plot_recipes_sankey(
         recipes=results_data['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
-        initial_temperature=initial_temperature
     )
 
     # Clear memory
