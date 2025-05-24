@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 class ChainSimulation(Database):
     """Class to simulate the mixing chain."""
-    def _init__(self):
+    def __init__(self):
         """___init__."""
         # Instantiate Database
         super().__init__()
