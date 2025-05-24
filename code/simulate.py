@@ -1,5 +1,4 @@
 """Script to create Mixing Chain."""
-import time
 import torch
 from tensors import Database, State
 from typing import List, Tuple
@@ -125,9 +124,6 @@ class ChainSimulation(Database):
                         initial_temperature /
                         torch.log(torch.tensor(t) + 1.01)
                     )
-                    start_time = time.time()
-                    print(f"Batch {b + 1}: Step {t + 1}")
-
                     # Store recipes
                     sim_recipes[
                         t, :, b * batch_size: (b + 1) * batch_size
@@ -150,7 +146,6 @@ class ChainSimulation(Database):
 
                     # Evolve chain state
                     current_state.walk(temperature)
-                    print(f"TET: {round(time.time() - start_time, 3)}s")
 
         # Calculates objective
         profits = sim_values - sim_costs
