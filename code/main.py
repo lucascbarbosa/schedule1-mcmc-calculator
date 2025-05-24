@@ -33,7 +33,7 @@ simulation_data = {
 }
 
 # Fixed parameters
-batch_size = 1000
+batch_size = 10_000
 n_steps = 1000
 initial_temperature = 100.0
 alpha = 0.99
