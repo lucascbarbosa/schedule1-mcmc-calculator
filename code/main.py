@@ -50,6 +50,13 @@ for base_product, recipe_size, initial_temperature in itertools.product(
         recipe_size=recipe_size,
         initial_temperature=initial_temperature,
     )
+    print("Optimal Results:")
+    print(f"# Recipe: {results_opt['recipe']}")
+    print(f"# Effects: {results_opt['effects']}")
+    print(f"# Cost: {results_opt['cost']}")
+    print(f"# Value: {results_opt['value']}")
+    print(f"# Profit: {results_opt['profit']}")
+    print("-" * 40)
 
     results_df.append(
         {
@@ -63,13 +70,6 @@ for base_product, recipe_size, initial_temperature in itertools.product(
             'Profit': results_opt['profit'],
         }
     )
-    print("Optimal Results:")
-    print(f"# Recipe: {results_opt['recipe']}")
-    print(f"# Effects: {results_opt['effects']}")
-    print(f"# Cost: {results_opt['cost']}")
-    print(f"# Value: {results_opt['value']}")
-    print(f"# Profit: {results_opt['profit']}")
-    print("-" * 40)
 
     # Move results to CPU
     results_data = to_cpu_recursive(results_data)
