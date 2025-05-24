@@ -29,7 +29,7 @@ chain = ChainSimulation()
 
 simulation_data = {
     'base_product': chain.products_df['product_name'].to_numpy(),
-    'recipe_size': [5, 6, 7, 8, 9, 10],
+    'recipe_size': [7, 8, 9, 10],
 }
 
 # Fixed parameters
