@@ -53,7 +53,6 @@ def plot_final_step_ingredients_barplot(
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_barplot.svg")
-    plt.show()
 
 
 def plot_ingredients_lineplot(
@@ -96,7 +95,6 @@ def plot_ingredients_lineplot(
     ax.legend(title='Ingredient')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_lineplot.svg")
-    plt.show()
 
 
 def plot_effects_lineplot(
@@ -139,7 +137,6 @@ def plot_effects_lineplot(
     ax.legend(title='Effect')
     # fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_effects_lineplot.svg")
-    plt.show()
 
 
 def plot_profit_lineplot(
@@ -172,7 +169,6 @@ def plot_profit_lineplot(
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_profit_lineplot.svg")
-    plt.show()
 
 
 def plot_recipes_sankey(

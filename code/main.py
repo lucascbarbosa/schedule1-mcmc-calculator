@@ -1,5 +1,6 @@
 """Main script."""
 import itertools
+import pandas as pd
 import torch
 from plots import (
     plot_effects_lineplot,
@@ -31,6 +32,7 @@ simulation_data = {
     'initial_temperature': [5.0, 10.0, 20.0, 50.0],
 }
 
+results_df = []
 for base_product, recipe_size, initial_temperature in itertools.product(
     simulation_data['base_product'],
     simulation_data['recipe_size'],
@@ -48,6 +50,18 @@ for base_product, recipe_size, initial_temperature in itertools.product(
         initial_temperature=initial_temperature,
     )
 
+    results_df.append(
+        {
+            'Base Product': base_product,
+            'Recipe Size': recipe_size,
+            'Initial Temperature': initial_temperature,
+            'Recipe': results_opt['recipe'],
+            'Effects': results_opt['effects'],
+            'Cost': results_opt['cost'],
+            'Value': results_opt['value'],
+            'Profit': results_opt['profit'],
+        }
+    )
     print("Optimal Results:")
     print(f"# Recipe: {results_opt['recipe']}")
     print(f"# Effects: {results_opt['effects']}")
@@ -96,14 +110,9 @@ for base_product, recipe_size, initial_temperature in itertools.product(
         initial_temperature=initial_temperature
     )
 
-    print("Optimal Results:")
-    print(f"# Recipe: {results_opt['recipe']}")
-    print(f"# Effects: {results_opt['effects']}")
-    print(f"# Cost: {results_opt['cost']}")
-    print(f"# Value: {results_opt['value']}")
-    print(f"# Profit: {results_opt['profit']}")
-    print("-" * 40)
-
     # Clear memory
     del results_data, results_opt
     torch.cuda.empty_cache()
+
+results_df = pd.DataFrame(results_df)
+results_df.to_excel('../results/optimization_results.xlsx')
