@@ -256,21 +256,32 @@ def plot_recipes_sankey(
 
 
 def plot_results_heatmap(results_df: pd.DataFrame):
-    for base_product in results_df['Base Product'].unique():
-        df_bp = results_df[results_df['Base Product'] == base_product]
-        pivot = df_bp.pivot(index='Initial Temperature', columns='Recipe Size', values='Profit')
-        plt.figure(figsize=(8, 6))
-        im = plt.imshow(pivot.values, aspect='auto', cmap="viridis", origin='lower')
-        plt.colorbar(im, label='Profit')
-        plt.title(f'Profit Heatmap for {base_product}')
-        plt.xlabel('Recipe Size')
-        plt.ylabel('Initial Temperature')
-        plt.xticks(ticks=np.arange(len(pivot.columns)), labels=pivot.columns)
-        plt.yticks(ticks=np.arange(len(pivot.index)), labels=pivot.index)
-        # Annotate cells
-        for i in range(pivot.shape[0]):
-            for j in range(pivot.shape[1]):
-                plt.text(j, i, f"{pivot.values[i, j]:.2f}", ha='center', va='center', color='w')
-        plt.tight_layout()
-        plt.savefig(f'../plots/{base_product}_heatmap.svg')
-        plt.close()
+    """Plot profit heatmap for each base product and recipe size."""
+    pivot = results_df.pivot_table(
+        index='Base Product',
+        columns='Recipe Size',
+        values='Profit'
+    )
+    plt.figure(figsize=(8, 6))
+    im = plt.imshow(
+        pivot.values,
+        aspect='auto',
+        cmap="viridis",
+        origin='lower'
+    )
+    plt.colorbar(im, label='Profit')
+    plt.title('Profit Heatmap')
+    plt.xlabel('Recipe Size')
+    plt.ylabel('Initial Temperature')
+    plt.xticks(ticks=np.arange(len(pivot.columns)), labels=pivot.columns)
+    plt.yticks(ticks=np.arange(len(pivot.index)), labels=pivot.index)
+    # Annotate cells
+    for i in range(pivot.shape[0]):
+        for j in range(pivot.shape[1]):
+            plt.text(
+                j, i, f"{pivot.to_numpy()[i, j]:.2f}",
+                ha='center', va='center', color='w'
+            )
+    plt.tight_layout()
+    plt.savefig('../plots/profit_heatmap.svg')
+    plt.close()
