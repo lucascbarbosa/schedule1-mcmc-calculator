@@ -32,7 +32,6 @@ simulation_data = {
     'recipe_size': [7, 8, 9, 10],
     'alpha': [0.99, 0.995, 0.999],
     'initial_temperature': [50.0, 100.0, 200.0],
-    'n_steps': [1000, 3000, 5000]
 }
 
 results_df = []
@@ -41,24 +40,21 @@ for (
     recipe_size,
     initial_temperature,
     alpha,
-    n_steps
 ) in itertools.product(
     simulation_data['base_product'],
     simulation_data['recipe_size'],
     simulation_data['initial_temperature'],
     simulation_data['alpha'],
-    simulation_data['n_steps']
 ):
     print("Running:")
     print(f"# Base Product: {base_product}")
     print(f"# Recipe Size: {recipe_size}")
     print(f"# Initial Temperature: {initial_temperature}")
     print(f"# Alpha decay: {alpha}")
-    print(f"# Steps: {n_steps}")
     results_data, results_opt = chain.optimize_recipes(
         base_product=base_product,
         batch_size=10_000,
-        n_steps=n_steps,
+        n_steps=1000,
         recipe_size=recipe_size,
         alpha=alpha,
         initial_temperature=initial_temperature,
@@ -77,7 +73,6 @@ for (
             'Recipe Size': recipe_size,
             'Initial Temperature': initial_temperature,
             'Alpha decay': alpha,
-            'Steps': n_steps,
             'Recipe': results_opt['recipe'],
             'Effects': results_opt['effects'],
             'Cost': results_opt['cost'],
