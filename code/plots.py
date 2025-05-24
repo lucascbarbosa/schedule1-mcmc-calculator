@@ -259,6 +259,7 @@ def plot_recipes_sankey(
     fig.write_image(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_recipes_sankey.svg")
     plt.close()
 
+
 def plot_results_heatmap(results_df: pd.DataFrame):
     for base_product in results_df['Base Product'].unique():
         df_bp = results_df[results_df['Base Product'] == base_product]
