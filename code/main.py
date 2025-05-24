@@ -88,7 +88,6 @@ for result in simulation_results:
         recipe_size=result['recipe_size'],
         initial_temperature=result['initial_temperature']
     )
-
     plot_effects_lineplot(
         effects=result['results_data']['effects'],
         effects_name=chain.effects_df['effect_name'].tolist(),
@@ -96,14 +95,12 @@ for result in simulation_results:
         recipe_size=result['recipe_size'],
         initial_temperature=result['initial_temperature']
     )
-
     plot_profit_lineplot(
         profits=result['results_data']['profits'],
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
         initial_temperature=result['initial_temperature']
     )
-
     plot_recipes_sankey(
         recipes=result['results_data']['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
