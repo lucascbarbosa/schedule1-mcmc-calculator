@@ -1,5 +1,6 @@
 """Main script."""
 import itertools
+import torch
 from plots import (
     plot_effects_lineplot,
     plot_final_step_ingredients_barplot,
@@ -8,6 +9,18 @@ from plots import (
     plot_recipes_sankey
 )
 from simulate import ChainSimulation
+
+
+def to_cpu_recursive(obj):
+    if isinstance(obj, torch.Tensor):
+        return obj.cpu()
+    elif isinstance(obj, dict):
+        return {k: to_cpu_recursive(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [to_cpu_recursive(x) for x in obj]
+    else:
+        return obj
+
 
 # Optimize recipes
 chain = ChainSimulation()
@@ -36,14 +49,15 @@ for base_product, recipe_size, initial_temperature in itertools.product(
         recipe_size=recipe_size,
         initial_temperature=initial_temperature,
     )
+
+    # Store results
     simulation_results.append({
         'base_product': base_product,
         'recipe_size': recipe_size,
         'initial_temperature': initial_temperature,
-        'results_data': results_data,
-        'results_opt': results_opt
+        'results_data': to_cpu_recursive(results_data),
+        'results_opt': to_cpu_recursive(results_opt)
     })
-
     print("Optimal Results:")
     print(f"# Recipe: {results_opt['recipe']}")
     print(f"# Effects: {results_opt['effects']}")
@@ -52,19 +66,23 @@ for base_product, recipe_size, initial_temperature in itertools.product(
     print(f"# Profit: {results_opt['profit']}")
     print("-" * 40)
 
+    # Clear memory
+    del results_data, results_opt
+    torch.cuda.empty_cache()
+
 
 # Print each result in simulation_results
 for result in simulation_results:
     # Plot results
     plot_final_step_ingredients_barplot(
-        recipes=results_data['recipes'],
+        recipes=result['results_data']['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
         initial_temperature=result['initial_temperature']
     )
     plot_ingredients_lineplot(
-        recipes=results_data['recipes'],
+        recipes=result['results_data']['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
@@ -72,7 +90,7 @@ for result in simulation_results:
     )
 
     plot_effects_lineplot(
-        effects=results_data['effects'],
+        effects=result['results_data']['effects'],
         effects_name=chain.effects_df['effect_name'].tolist(),
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
@@ -80,14 +98,14 @@ for result in simulation_results:
     )
 
     plot_profit_lineplot(
-        profits=results_data['profits'],
+        profits=result['results_data']['profits'],
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
         initial_temperature=result['initial_temperature']
     )
 
     plot_recipes_sankey(
-        recipes=results_data['recipes'],
+        recipes=result['results_data']['recipes'],
         ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
         base_product=result['base_product'],
         recipe_size=result['recipe_size'],
