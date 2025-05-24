@@ -247,7 +247,7 @@ class State(Database):
         return self.value(effects) - self.cost(recipes)
 
     def effects_distance(self) -> float:
-        """Distance current state active and desired effects."""
+        """Distance between current state active and desired effects."""
         effects = self.get_effects()
         desired_effects = torch.tensor(
             [
@@ -256,13 +256,13 @@ class State(Database):
             ],
             dtype=torch.float32,
             device=self.device
-        ).view(-1, 1)  # shape (n_effects, 1) for broadcasting
+        ).view(-1, 1)
         return (
             -torch.sum((effects - desired_effects)**2, dim=0)
         )
 
     def neighbour_effects_distance(self) -> float:
-        """Distance neighbour state active and desired effects."""
+        """Distance between neighbour state active and desired effects."""
         neighbour_effects = self.get_neighbour_effects()
         desired_effects = torch.tensor(
             [
@@ -271,7 +271,7 @@ class State(Database):
             ],
             dtype=torch.float32,
             device=self.device
-        ).view(-1, 1)  # shape (n_effects, 1) for broadcasting
+        ).view(-1, 1)
         return (
             -torch.sum((neighbour_effects - desired_effects)**2, dim=0)
         )
