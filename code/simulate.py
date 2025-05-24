@@ -90,22 +90,22 @@ class ChainSimulation(Database):
         sim_recipes = torch.zeros(
             (n_steps, recipe_size, n_batches * batch_size),
             dtype=torch.float32,
-            device=self.device
+            device="cpu"
         )
         sim_effects = torch.zeros(
             (n_steps, self.n_effects, n_batches * batch_size),
             dtype=torch.float32,
-            device=self.device
+            device="cpu"
         )
         sim_costs = torch.zeros(
             (n_steps, n_batches * batch_size),
             dtype=torch.float32,
-            device=self.device
+            device="cpu"
         )
         sim_values = torch.zeros(
             (n_steps, n_batches * batch_size),
             dtype=torch.float32,
-            device=self.device
+            device="cpu"
         )
 
         with torch.no_grad():
@@ -118,12 +118,12 @@ class ChainSimulation(Database):
                     recipe_size=recipe_size,
                     objective_function=objective_function,
                 )
-
+                temperature = torch.tensor(
+                    initial_temperature,
+                    dtype=torch.float32,
+                    device=self.device
+                )
                 for t in range(n_steps):
-                    temperature = (
-                        initial_temperature /
-                        torch.log(torch.tensor(t) + 1.01)
-                    )
                     # Store recipes
                     sim_recipes[
                         t, :, b * batch_size: (b + 1) * batch_size
@@ -146,6 +146,9 @@ class ChainSimulation(Database):
 
                     # Evolve chain state
                     current_state.walk(temperature)
+
+                    # Decreases temperature with geometric schedule
+                    temperature *= 0.99
 
         # Calculates objective
         profits = sim_values - sim_costs
