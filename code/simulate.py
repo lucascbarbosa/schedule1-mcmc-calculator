@@ -65,6 +65,7 @@ class ChainSimulation(Database):
         recipe_size: int = 7,
         n_batches: int = 1,
         initial_temperature: float = 1.0,
+        objective_function: str = "profit"
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
@@ -79,6 +80,8 @@ class ChainSimulation(Database):
             initial_temperature (float, optional): Initial value for Boltzmann
             temperature
             parameter. Defaults to 1.0.
+            objective_function (str, optional): Objective function used for
+            Boltzmann distribution. Defaults to `profit`.
 
         Returns:
             Tuple[List[str], List[str], float, float, float]:
@@ -114,6 +117,7 @@ class ChainSimulation(Database):
                     base_product=base_product,
                     batch_size=batch_size,
                     recipe_size=recipe_size,
+                    objective_function=objective_function,
                 )
 
                 for t in range(n_steps):

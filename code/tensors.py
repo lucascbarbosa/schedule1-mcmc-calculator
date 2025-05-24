@@ -125,6 +125,7 @@ class State(Database):
         base_product: str,
         batch_size: int,
         recipe_size: int,
+        objective_function: str,
     ):
         """Create initial ingredients and effects tensors.
 
@@ -132,6 +133,8 @@ class State(Database):
             base_product (str): Base product used as source state.
             batch_size (int): Number of simulations in batch.
             recipe_size (int): Number of steps in simulation.
+            objective_function (str, optional): Objective function used for
+            Boltzmann distribution. Defaults to `profit`.
 
         Raises:
             ValueError: If chosen based product.
@@ -140,6 +143,7 @@ class State(Database):
         super().__init__()
         self.batch_size = batch_size
         self.recipe_size = recipe_size
+        self.objective_function = objective_function
 
         # Get base product cost, value and effect
         base_product = self.products_df[
@@ -242,10 +246,34 @@ class State(Database):
         recipes = self.get_neighbour_recipes()
         return self.value(effects) - self.cost(recipes)
 
-    def effects_distance(self, desired_effects: torch.Tensor) -> float:
+    def effects_distance(self) -> float:
         """Distance current state active and desired effects."""
+        effects = self.get_effects()
+        desired_effects = torch.tensor(
+            [
+                1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0,
+                0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1
+            ],
+            dtype=torch.float32,
+            device=self.device
+        ).view(-1, 1)  # shape (n_effects, 1) for broadcasting
         return (
-            -torch.sum((self.effects - desired_effects)**2, dim=0)
+            -torch.sum((effects - desired_effects)**2, dim=0)
+        )
+
+    def neighbour_effects_distance(self) -> float:
+        """Distance neighbour state active and desired effects."""
+        neighbour_effects = self.get_neighbour_effects()
+        desired_effects = torch.tensor(
+            [
+                1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0,
+                0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1
+            ],
+            dtype=torch.float32,
+            device=self.device
+        ).view(-1, 1)  # shape (n_effects, 1) for broadcasting
+        return (
+            -torch.sum((neighbour_effects - desired_effects)**2, dim=0)
         )
 
     def apply_ingredients_effect(
@@ -376,8 +404,12 @@ class State(Database):
             torch.Tensor: neighbour acceptance
         """
         # Compute objective function for current and neighbour states
-        current_obj = self.profit()
-        neighbour_obj = self.neighbour_profit()
+        if self.objective_function == "profit":
+            current_obj = self.profit()
+            neighbour_obj = self.neighbour_profit()
+        elif self.objective_function == "effects":
+            current_obj = self.effects_distance()
+            neighbour_obj = self.neighbour_effects_distance()
 
         # Compute acceptance probability
         acceps = torch.clamp(

@@ -13,9 +13,10 @@ chain = ChainSimulation()
 results_data, results_opt = chain.optimize_recipes(
     base_product="OG Kush",
     batch_size=10_000,
-    n_steps=200,
+    n_steps=300,
     recipe_size=8,
     initial_temperature=1.0,
+    objective_function="effects"
 )
 print(
 f"""
