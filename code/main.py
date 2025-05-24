@@ -10,6 +10,7 @@ from plots import (
     plot_recipes_sankey
 )
 from simulate import ChainSimulation
+import os
 
 
 def to_cpu_recursive(obj):

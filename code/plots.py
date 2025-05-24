@@ -1,6 +1,7 @@
 """Script to plot optimization results."""
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import plotly.graph_objects as go
 import torch
 from typing import List
@@ -53,6 +54,7 @@ def plot_final_step_ingredients_barplot(
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_barplot.svg")
+    plt.close()
 
 
 def plot_ingredients_lineplot(
@@ -95,6 +97,7 @@ def plot_ingredients_lineplot(
     ax.legend(title='Ingredient')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_lineplot.svg")
+    plt.close()
 
 
 def plot_effects_lineplot(
@@ -137,6 +140,7 @@ def plot_effects_lineplot(
     ax.legend(title='Effect')
     # fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_effects_lineplot.svg")
+    plt.close()
 
 
 def plot_profit_lineplot(
@@ -169,6 +173,7 @@ def plot_profit_lineplot(
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_profit_lineplot.svg")
+    plt.close()
 
 
 def plot_recipes_sankey(
@@ -252,3 +257,24 @@ def plot_recipes_sankey(
         font_size=12
     )
     fig.write_image(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_recipes_sankey.svg")
+    plt.close()
+
+def plot_results_heatmap(results_df: pd.DataFrame):
+    for base_product in results_df['Base Product'].unique():
+        df_bp = results_df[results_df['Base Product'] == base_product]
+        pivot = df_bp.pivot(index='Initial Temperature', columns='Recipe Size', values='Profit')
+        plt.figure(figsize=(8, 6))
+        im = plt.imshow(pivot.values, aspect='auto', cmap="viridis", origin='lower')
+        plt.colorbar(im, label='Profit')
+        plt.title(f'Profit Heatmap for {base_product}')
+        plt.xlabel('Recipe Size')
+        plt.ylabel('Initial Temperature')
+        plt.xticks(ticks=np.arange(len(pivot.columns)), labels=pivot.columns)
+        plt.yticks(ticks=np.arange(len(pivot.index)), labels=pivot.index)
+        # Annotate cells
+        for i in range(pivot.shape[0]):
+            for j in range(pivot.shape[1]):
+                plt.text(j, i, f"{pivot.values[i, j]:.2f}", ha='center', va='center', color='w')
+        plt.tight_layout()
+        plt.savefig(f'../plots/heatmap_{base_product}.png')
+        plt.close()
