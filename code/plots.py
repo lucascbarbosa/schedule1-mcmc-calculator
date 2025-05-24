@@ -134,7 +134,7 @@ def plot_profit_lineplot(profits: torch.Tensor):
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(steps, means, label='Mean Profit', color='blue')
     ax.fill_between(
-        steps, means - stds, means + stds, color='blue', alpha=0.2
+        steps, means - 3 * stds, means + 3 * stds, color='blue', alpha=0.2
     )
     ax.set_xlabel('Step')
     ax.set_ylabel('Profit')
