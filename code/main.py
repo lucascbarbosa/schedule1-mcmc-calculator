@@ -30,7 +30,7 @@ chain = ChainSimulation()
 simulation_data = {
     'base_product': chain.products_df['product_name'].to_numpy(),
     'recipe_size': [7, 8, 9, 10, 11, 12, 13, 14, 15],
-    'initial_temperature': [5.0, 10.0, 20.0, 50.0],
+    'initial_temperature': [1.0, 5.0, 10.0, 20.0],
 }
 
 results_df = []
