@@ -277,5 +277,5 @@ def plot_results_heatmap(results_df: pd.DataFrame):
             for j in range(pivot.shape[1]):
                 plt.text(j, i, f"{pivot.values[i, j]:.2f}", ha='center', va='center', color='w')
         plt.tight_layout()
-        plt.savefig(f'../plots/heatmap_{base_product}.png')
+        plt.savefig(f'../plots/{base_product}_heatmap.png')
         plt.close()
