@@ -12,7 +12,6 @@ def plot_final_step_ingredients_barplot(
     ingredients_name: List[str],
     base_product: str,
     recipe_size: int,
-    initial_temperature: float,
 ):
     """Plot ingredients relative frequency per recipe position in final step."""
     # Get last step: shape (recipe_size, batch_size)
@@ -45,7 +44,7 @@ def plot_final_step_ingredients_barplot(
     ax.set_ylabel("Relative Frequency")
     ax.set_title(
         "Ingredient relative frequency per recipe position (at last step)\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}, T0: {initial_temperature}",
+        f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
@@ -53,7 +52,7 @@ def plot_final_step_ingredients_barplot(
     ax.set_xticklabels([str(i) for i in indices])
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
     fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_barplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_barplot.svg")
     plt.close()
 
 
@@ -62,7 +61,6 @@ def plot_ingredients_lineplot(
     ingredients_name: List[str],
     base_product: str,
     recipe_size: int,
-    initial_temperature: float,
 ):
     """Plot ingredients relative frequency per step as line plot."""
     recipes = recipes.int()
@@ -89,14 +87,14 @@ def plot_ingredients_lineplot(
     ax.set_ylabel('Relative frequency')
     ax.set_title(
         "Relative frequency of ingredients per simulation step\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}, T0: {initial_temperature}",
+        f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
     ax.set_xticks(steps[::10])
     ax.legend(title='Ingredient')
     fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_lineplot.svg")
     plt.close()
 
 
@@ -105,7 +103,6 @@ def plot_effects_lineplot(
     effects_name: List[str],
     base_product: str,
     recipe_size: int,
-    initial_temperature: float,
 ):
     """Plot the relative frequency of each effect as a line plot."""
     n_steps, n_effects, batch_size = effects.shape
@@ -132,14 +129,14 @@ def plot_effects_lineplot(
     ax.set_ylabel('Relative frequency')
     ax.set_title(
         "Relative frequency of effects per simulation step\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}, T0: {initial_temperature}",
+        f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
     ax.set_xticks(steps[::10])
     ax.legend(title='Effect')
     # fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_effects_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_lineplot.svg")
     plt.close()
 
 
@@ -147,7 +144,6 @@ def plot_profit_lineplot(
     profits: torch.Tensor,
     base_product: str,
     recipe_size: int,
-    initial_temperature: float,
 ):
     """Plot mean profit per step with 95% confidence interval as a line plot."""
     n_steps = profits.shape[0]
@@ -166,13 +162,13 @@ def plot_profit_lineplot(
     ax.set_ylabel('Profit')
     ax.set_title(
         "Mean profit per step with confidence interval per simulation step\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}, T0: {initial_temperature}",
+        f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_profit_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_profit_lineplot.svg")
     plt.close()
 
 
@@ -181,7 +177,6 @@ def plot_recipes_sankey(
     ingredients_name: list,
     base_product: str,
     recipe_size: int,
-    initial_temperature: float,
 ):
     """Plot a Sankey diagram for the last step of recipes.
 
@@ -252,11 +247,11 @@ def plot_recipes_sankey(
         height=600,
         title_text=(
             "Sankey Diagram of Ingredients per recipe position (at last step)\n"
-            f"Base Product: {base_product}, Recipe size: {recipe_size}, T0: {initial_temperature}"
+            f"Base Product: {base_product}, Recipe size: {recipe_size}"
         ),
         font_size=12
     )
-    fig.write_image(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_recipes_sankey.svg")
+    fig.write_image(f"../plots/{base_product}_{recipe_size}_recipes_sankey.svg")
     plt.close()
 
 
