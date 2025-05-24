@@ -61,9 +61,10 @@ class ChainSimulation(Database):
         base_product: str,
         batch_size: int,
         n_steps: int,
+        initial_temperature: float,
+        alpha: float = 0.99,
         recipe_size: int = 7,
         n_batches: int = 1,
-        initial_temperature: float = 1.0,
         objective_function: str = "profit"
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
@@ -73,12 +74,12 @@ class ChainSimulation(Database):
             batch_size (int): Number of recipes in batch.
             distribution.
             n_steps (int): Number of steps simulation steps.
+            initial_temperature (float): Initial value for Boltzmann
+            temperature. Defaults to 1.0.
+            alpha (float, optional): Boltzmann temperature geometric factor.
             recipe_size (int, optional): Number of ingredients in recipe.
             Defaults to 7.
             n_batches (int): Number of batches simulated.
-            initial_temperature (float, optional): Initial value for Boltzmann
-            temperature
-            parameter. Defaults to 1.0.
             objective_function (str, optional): Objective function used for
             Boltzmann distribution. Defaults to `profit`.
 
@@ -148,7 +149,7 @@ class ChainSimulation(Database):
                     current_state.walk(temperature)
 
                     # Decreases temperature with geometric schedule
-                    temperature *= 0.99
+                    temperature *= alpha
 
         # Calculates objective
         profits = sim_values - sim_costs
