@@ -54,7 +54,7 @@ for (
     print(f"# Recipe Size: {recipe_size}")
     print(f"# Initial Temperature: {initial_temperature}")
     print(f"# Alpha decay: {alpha}")
-    print(f"# Number of steps: {n_steps}")
+    print(f"# Steps: {n_steps}")
     results_data, results_opt = chain.optimize_recipes(
         base_product=base_product,
         batch_size=10_000,
@@ -76,6 +76,8 @@ for (
             'Base Product': base_product,
             'Recipe Size': recipe_size,
             'Initial Temperature': initial_temperature,
+            'Alpha decay': alpha,
+            'Steps': n_steps,
             'Recipe': results_opt['recipe'],
             'Effects': results_opt['effects'],
             'Cost': results_opt['cost'],
