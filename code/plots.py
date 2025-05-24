@@ -9,8 +9,9 @@ from typing import List
 def plot_final_step_ingredients_barplot(
     recipes: torch.Tensor,
     ingredients_name: List[str],
-    recipe_size: int = 7,
-    save_path: str = "../plots/final_step_stacked_bar.svg"
+    base_product: str,
+    recipe_size: int,
+    initial_temperature: float,
 ):
     """Plot ingredients relative frequency per recipe position in final step."""
     # Get last step: shape (recipe_size, batch_size)
@@ -48,13 +49,16 @@ def plot_final_step_ingredients_barplot(
     ax.set_xticklabels([str(i) for i in indices])
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
     fig.tight_layout()
-    fig.savefig(save_path)
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_barplot.svg")
     plt.show()
 
 
 def plot_ingredients_lineplot(
     recipes: torch.Tensor,
     ingredients_name: List[str],
+    base_product: str,
+    recipe_size: int,
+    initial_temperature: float,
 ):
     """Plot ingredients relative frequency per step as line plot."""
     recipes = recipes.int()
@@ -83,13 +87,16 @@ def plot_ingredients_lineplot(
     ax.set_xticks(steps[::10])
     ax.legend(title='Ingredient')
     fig.tight_layout()
-    fig.savefig("../plots/ingredients_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_ingredients_lineplot.svg")
     plt.show()
 
 
 def plot_effects_lineplot(
     effects: torch.Tensor,
-    effects_name: List[str]
+    effects_name: List[str],
+    base_product: str,
+    recipe_size: int,
+    initial_temperature: float,
 ):
     """Plot the relative frequency of each effect as a line plot."""
     n_steps, n_effects, batch_size = effects.shape
@@ -118,11 +125,16 @@ def plot_effects_lineplot(
     ax.set_xticks(steps[::10])
     ax.legend(title='Effect')
     # fig.tight_layout()
-    fig.savefig("../plots/effects_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_effects_lineplot.svg")
     plt.show()
 
 
-def plot_profit_lineplot(profits: torch.Tensor):
+def plot_profit_lineplot(
+    profits: torch.Tensor,
+    base_product: str,
+    recipe_size: int,
+    initial_temperature: float,
+):
     """Plot mean profit per step with 95% confidence interval as a line plot."""
     n_steps = profits.shape[0]
     profits_np = profits.cpu().numpy()  # shape: (n_steps, n_samples)
@@ -141,13 +153,16 @@ def plot_profit_lineplot(profits: torch.Tensor):
     ax.set_title('Mean profit per step with 95% confidence interval')
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
-    fig.savefig("../plots/profit_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_profit_lineplot.svg")
     plt.show()
 
 
 def plot_recipes_sankey(
     recipes: torch.Tensor,
-    ingredients_name: list
+    ingredients_name: list,
+    base_product: str,
+    recipe_size: int,
+    initial_temperature: float,
 ):
     """Plot a Sankey diagram for the last step of recipes.
 
@@ -156,10 +171,6 @@ def plot_recipes_sankey(
     and its value is the number of recipes that contain both ingredients at
     those positions.
 
-    Args:
-        recipes (torch.Tensor): Tensor of recipes with ingredient ids
-        (steps, recipe_size, batch_size).
-        ingredients_name (list): List of ingredient names.
     """
     # Use only the last step
     last_step = recipes[-1]  # shape: (recipe_size, batch_size)
@@ -223,4 +234,4 @@ def plot_recipes_sankey(
         title_text="Sankey Diagram of Ingredients per recipe position (at last step)",
         font_size=12
     )
-    fig.write_image("../plots/recipes_sankey.svg")
+    fig.write_image(f"../plots/{base_product}_{recipe_size}_{initial_temperature}_recipes_sankey.svg")
