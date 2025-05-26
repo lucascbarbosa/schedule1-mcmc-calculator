@@ -255,7 +255,7 @@ def plot_recipes_sankey(
     plt.close()
 
 
-def plot_results_barplot(results_df: pd.DataFrame):
+def plot_profit_barplot(results_df: pd.DataFrame):
     """Plot profit barplot for each base product and recipe size."""
     plt.figure(figsize=(10, 6))
     recipe_sizes = sorted(results_df['Recipe Size'].unique())
