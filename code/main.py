@@ -117,7 +117,7 @@ for (
     torch.cuda.empty_cache()
 
 results_df = pd.DataFrame(results_df)
-results_df.to_excel('../results/optimization_results.xlsx')
+results_df.to_excel('../results/optimization_results.xlsx', index=False)
 
 # Plot results heatmap
 plot_results_heatmap(results_df)
