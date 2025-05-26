@@ -69,6 +69,8 @@ for (
         {
             'Base Product': base_product,
             'Recipe Size': recipe_size,
+            'Recipe': results_opt['recipe'],
+            'Effects': results_opt['effects'],
             'Cost': results_opt['cost'],
             'Value': results_opt['value'],
             'Profit': results_opt['profit'],
