@@ -8,7 +8,7 @@ from plots import (
     plot_ingredients_lineplot,
     plot_profit_lineplot,
     plot_recipes_sankey,
-    plot_results_heatmap,
+    plot_profit_barplot,
 )
 from simulate import ChainSimulation
 
@@ -120,4 +120,4 @@ results_df = pd.DataFrame(results_df)
 results_df.to_excel('../results/optimization_results.xlsx', index=False)
 
 # Plot results heatmap
-plot_results_heatmap(results_df)
+plot_profit_barplot(results_df)
