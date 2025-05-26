@@ -1,18 +1,17 @@
 """Script to create Mixing Chain."""
-import time
 import torch
-from tensors import DatabaseTensors, StateTensors
+from tensors import Database, State
 from typing import List, Tuple
 
 
-class ChainSimulation(DatabaseTensors):
+class ChainSimulation(Database):
     """Class to simulate the mixing chain."""
-    def _init__(self, torch_device: str):
+    def __init__(self):
         """___init__."""
-        # Instantiate DatabaseTensors
-        super().__init__(torch_device=torch_device)
+        # Instantiate Database
+        super().__init__()
 
-    def _encode_recipe(self, recipe: List[str]) -> torch.Tensor:
+    def _encode_recipes(self, recipe: List[str]) -> torch.Tensor:
         """Convert from ingredients name to id."""
         name_to_id = self.ingredients_df.set_index(
             "ingredient_name")["ingredient_id"].to_dict()
@@ -39,14 +38,14 @@ class ChainSimulation(DatabaseTensors):
                 raise ValueError(f"Effect name {n} is incorrect!")
         return effects_encoded
 
-    def _decode_recipe(self, recipe: torch.Tensor):
+    def _decode_recipes(self, recipe: torch.Tensor):
         """Convert from ingredients id to name."""
         id_list = recipe.tolist()
         id_to_name = self.ingredients_df.set_index(
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
         for ingredient_id in id_list:
-            if ingredient_id != self.n_ingredients: 
+            if ingredient_id != self.n_ingredients:
                 names.append(id_to_name[ingredient_id])
         return names
 
@@ -57,257 +56,117 @@ class ChainSimulation(DatabaseTensors):
             self.effects_df["effect_id"].isin(effects_id.tolist())
         ]["effect_name"].tolist()
 
-    def _boltzmann_temperature(self, step: int):
-        """Calculate temperature parameter of Boltzmann distribution."""
-        return self.T0 / torch.log(torch.tensor(step + 1.01))
-
-    def _neighbours_acceptance(
-        self,
-        current_state: StateTensors,
-        neighbours_state: StateTensors,
-        step: int,
-    ) -> torch.Tensor:
-        """Calculates probability of choosing each ingredient.
-
-        This is a Boltzmann probability adjusted by the Metropoles-Hastings
-        acceptance parameter that takes into account the profit resulting from
-        adding that ingredient. The temperature parameter is computed via
-        simulated annealing with log schedule.
-        """
-        # Fetch current temperature parameter via log schedule
-        T = self._boltzmann_temperature(step)
-
-        # Compute objective function for current and neighbour states
-        if self.objective_function == 'profit':
-            current_obj = current_state.current_profit()
-            neighbours_obj = neighbours_state.current_profit().reshape(
-                (self.n_ingredients, self.batch_size)
-            )
-            previous_obj = current_state.previous_profit()
-            # print(previous_obj)
-
-        elif self.objective_function == 'effects':
-            desired_effects = self._encode_effects(
-                [
-                    'Anti-Gravity', 'Cyclopean', 'Electrifying', 'Glowing',
-                    'Long-Faced', 'Shrinking', 'Tropic-Thunder', 'Zombifying'
-                ]
-            )
-            current_obj = current_state.effects_distance(
-                desired_effects=desired_effects)
-            neighbours_obj = neighbours_state.effects_distance(
-                desired_effects=desired_effects).reshape(
-                    (self.n_ingredients, self.batch_size)
-                )
-            previous_obj = current_state.previous_effects_distance()
-
-        else:
-            raise ValueError(
-                f"Objective function {self.objective_function} not available!"
-            )
-
-        # Added previous objective function to neighbours
-        neighbours_obj = torch.cat([neighbours_obj, previous_obj])
-
-        # Compute acceptance probability
-        acceps = torch.clamp(
-            torch.exp((neighbours_obj - current_obj) / T), max=1.0
-        )
-
-        # In first step, removing ingredient is impossible
-        if step == 0:
-            acceps[-1, :] = 0.0
-
-        # If ingredients count reaches 7, only removing ingredient is possible
-        current_state.ingredients_count.sum(dim=0)
-        sum_ingredients = current_state.ingredients_count.sum(dim=0)
-        sum_mask = sum_ingredients >= 7
-        filtered_batch_ids = torch.nonzero(sum_mask).squeeze(1)
-        acceps[-1, filtered_batch_ids] = 1.0
-        acceps[:-1, filtered_batch_ids] = 0.0
-
-        return acceps
-
-    def compute_ingredient_prob(
-        self,
-        current_state: StateTensors,
-        neighbours_state: StateTensors,
-        all_ingredients: torch.Tensor,
-        step: int
-    ) -> torch.Tensor:
-        """Compute adjusted probability of using each ingredient.
-
-        Given a current state, the neighbour states are the results
-        from adding an ingredient to the product.
-        """
-        # Copy current state tensors
-        ingredients_count, active_effects = current_state.get_current_tensors()
-
-        # Set neighbours state tensors
-        neighbours_state.ingredients_count.copy_(
-            ingredients_count.repeat(1, self.n_ingredients)
-        )
-        neighbours_state.active_effects.copy_(
-            active_effects.repeat(1, self.n_ingredients)
-        )
-
-        # Mix ingredient
-        neighbours_state.mix_ingredient(all_ingredients)
-
-        # Get neighbours acceptance
-        ingredients_accep = self._neighbours_acceptance(
-            current_state=current_state,
-            neighbours_state=neighbours_state,
-            step=step
-        )
-
-        # Calculate probability from normal adjusted by acceptance
-        ingredients_prob = (
-            ingredients_accep /
-            ingredients_accep.sum(dim=0)
-        )
-        return ingredients_prob
-
-    def optimize_recipe(
+    def optimize_recipes(
         self,
         base_product: str,
-        objective_function: str,
-        num_simulations: int,
         batch_size: int,
-        num_steps: int = 8,
-        T0: float = 1.0,
+        n_steps: int,
+        initial_temperature: float,
+        alpha: float = 0.99,
+        recipe_size: int = 7,
+        n_batches: int = 1,
+        objective_function: str = "profit"
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
         Args:
             base_product (str): Base product.
-            num_simulations (int): Number of batches simulated.
             batch_size (int): Number of recipes in batch.
-            objective_function (str): Objective function used in boltzmann
             distribution.
-            num_steps (int, optional): Number of simulation steps.
-            Defaults to 8.
-            T0 (float, optional): Initial value for Boltzmann temperature
-            parameter. Defaults to 1.0.
+            n_steps (int): Number of steps simulation steps.
+            initial_temperature (float): Initial value for Boltzmann
+            temperature. Defaults to 1.0.
+            alpha (float, optional): Boltzmann temperature geometric factor.
+            recipe_size (int, optional): Number of ingredients in recipe.
+            Defaults to 7.
+            n_batches (int): Number of batches simulated.
+            objective_function (str, optional): Objective function used for
+            Boltzmann distribution. Defaults to `profit`.
 
         Returns:
             Tuple[List[str], List[str], float, float, float]:
             Optimal recipe with effects, cost, value and profit.
         """
-        # Simulation parameters
-        self.batch_size = batch_size
-        self.num_steps = num_steps
-        self.base_product = base_product
-        self.T0 = T0
-        self.objective_function = objective_function
-
         # Output tensors
-        recipes = torch.ones(
-            num_steps, num_simulations * self.batch_size,
-            dtype=torch.int32,
-            device="cpu") * self.n_ingredients
-        effects = torch.zeros(
-            num_steps, num_simulations * self.batch_size, self.n_effects,
+        sim_recipes = torch.zeros(
+            (n_steps, recipe_size, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
-        costs = torch.zeros(
-            num_steps, num_simulations * self.batch_size,
+        sim_effects = torch.zeros(
+            (n_steps, self.n_effects, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
-        values = torch.zeros(
-            num_steps, num_simulations * self.batch_size,
+        sim_costs = torch.zeros(
+            (n_steps, n_batches * batch_size),
             dtype=torch.float32,
             device="cpu"
         )
-
-        # Generate all possible ingredients tensor.
-        all_ingredients = torch.arange(
-            self.n_ingredients, device=self.device
-        ).unsqueeze(1).expand(-1, self.batch_size).reshape((
-            self.batch_size * self.n_ingredients
-        ))
+        sim_values = torch.zeros(
+            (n_steps, n_batches * batch_size),
+            dtype=torch.float32,
+            device="cpu"
+        )
 
         with torch.no_grad():
-            for s in range(num_simulations):
+            for b in range(n_batches):
                 torch.cuda.empty_cache()
                 # Define current state
-                current_state = StateTensors(
+                current_state = State(
                     base_product=base_product,
-                    batch_size=self.batch_size,
-                    torch_device=self.device,
-                    num_steps=self.num_steps,
+                    batch_size=batch_size,
+                    recipe_size=recipe_size,
+                    objective_function=objective_function,
                 )
-
-                # Define neighbours state
-                neighbours_state = StateTensors(
-                    self.base_product,
-                    self.batch_size * self.n_ingredients,
-                    torch_device=self.device,
-                    num_steps=self.num_steps,
+                temperature = torch.tensor(
+                    initial_temperature,
+                    dtype=torch.float32,
+                    device=self.device
                 )
-
-                for t in range(num_steps):
-                    start_time = time.time()
-                    print(f"Batch simulation {s + 1}: Step {t + 1}")
-                    # Ingredients choice prob (n_ingredients, batch_size)
-                    ingredients_probs = self.compute_ingredient_prob(
-                        current_state,
-                        neighbours_state,
-                        all_ingredients,
-                        t
-                    )
-                    ingredients = torch.multinomial(
-                        ingredients_probs.T, num_samples=1).squeeze(1).int()
-
-                    # Mix ingredients to state
-                    current_state.mix_ingredient(ingredients)
-
-                    # Store added ingredients and delete removed ingredients
-                    removed_ingredients_ids = s * self.batch_size + torch.where(
-                        ingredients == self.n_ingredients
-                    )[0]
-                    recipes[
-                        t, s * self.batch_size:(s + 1) * self.batch_size
-                    ] = ingredients
-                    recipes[
-                        t - 1, removed_ingredients_ids
-                    ] = self.n_ingredients
+                for t in range(n_steps):
+                    # Store recipes
+                    sim_recipes[
+                        t, :, b * batch_size: (b + 1) * batch_size
+                    ] = current_state.get_recipes()
 
                     # Store effects
-                    effects[
-                        t, s * self.batch_size:(s + 1) * self.batch_size, :
-                    ] = current_state.active_effects.T
+                    sim_effects[
+                        t, :, b * batch_size:(b + 1) * batch_size
+                    ] = current_state.get_effects()
 
                     # Store costs
-                    costs[
-                        t, s * self.batch_size:(s + 1) * self.batch_size
-                    ] = current_state.current_cost()
+                    sim_costs[
+                        t, b * batch_size:(b + 1) * batch_size
+                    ] = current_state.cost()
 
                     # Store values
-                    values[
-                        t, s * self.batch_size:(s + 1) * self.batch_size
-                    ] = current_state.current_value()
-                    print(f"TET: {round(time.time() - start_time, 3)}s")
-                    t += 1
+                    sim_values[
+                        t, b * batch_size:(b + 1) * batch_size
+                    ] = current_state.value()
+
+                    # Evolve chain state
+                    current_state.walk(temperature)
+
+                    # Decreases temperature with geometric schedule
+                    temperature *= alpha
 
         # Calculates objective
-        profits = values - costs
+        profits = sim_values - sim_costs
 
         # Fetch optimal recipe
         id_opt = torch.where(profits == profits.max())
         opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
-        recipe_opt = self._decode_recipe(recipes[:opt_step + 1, opt_sim])
-        effects_opt = self._decode_effects(effects[opt_step, opt_sim, :])
-        cost_opt = float(costs[opt_step, opt_sim])
-        value_opt = float(values[opt_step, opt_sim])
+        recipe_opt = self._decode_recipes(sim_recipes[opt_step, :, opt_sim])
+        effects_opt = self._decode_effects(sim_effects[opt_step, :, opt_sim])
+        cost_opt = float(sim_costs[opt_step, opt_sim])
+        value_opt = float(sim_values[opt_step, opt_sim])
         profit_opt = float(profits[opt_step, opt_sim])
         results_data = {
-            "recipes": recipes,
-            "effects": effects,
-            "costs": costs,
-            "values": values,
+            "recipes": sim_recipes,
+            "effects": sim_effects,
+            "costs": sim_costs,
+            "values": sim_values,
             "profits": profits
         }
         results_opt = {
@@ -319,49 +178,3 @@ class ChainSimulation(DatabaseTensors):
         }
 
         return results_data, results_opt
-
-    def mix_recipe(
-        self,
-        base_product: str,
-        recipe: List[str],
-    ) -> Tuple[List[str], float, float, float]:
-        """Create a mix given a recipe.
-
-        Args:
-            base_product (str): Base product.
-            recipe (List): List with order of ingredients to be mixed.
-
-        Returns:
-            Tuple[list, float, float, float]:
-            Optimal recipe with effects, cost, value and profit.
-
-        Raises:
-            ValueError: if ingredient name in recipe is incorrect.
-        """
-        self.batch_size = 1
-        # Set base state
-        state = StateTensors(
-            base_product=base_product,
-            batch_size=1,
-            torch_device=self.device,
-            num_steps=len(recipe),
-        )
-
-        # Encode ingredients in recipe
-        recipe = self._encode_recipe(recipe)
-
-        for i in range(recipe.shape[0]):
-            ingredient = recipe[i]
-            # Mix ingredients to state
-            state.mix_ingredient(ingredient)
-
-        effects = self._decode_effects(state.active_effects[:, 0])
-        cost = float(state.current_cost())
-        value = float(state.current_value())
-        profit = value - cost
-        return {
-            "effects": effects,
-            "cost": cost,
-            "value": value,
-            "profit": profit
-        }
