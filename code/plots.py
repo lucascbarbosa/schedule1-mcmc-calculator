@@ -255,33 +255,37 @@ def plot_recipes_sankey(
     plt.close()
 
 
-def plot_results_heatmap(results_df: pd.DataFrame):
-    """Plot profit heatmap for each base product and recipe size."""
-    pivot = results_df.pivot_table(
-        index='Base Product',
-        columns='Recipe Size',
-        values='Profit'
-    )
-    plt.figure(figsize=(8, 6))
-    im = plt.imshow(
-        pivot.values,
-        aspect='auto',
-        cmap="viridis",
-        origin='lower'
-    )
-    plt.colorbar(im, label='Profit')
-    plt.title('Profit Heatmap')
-    plt.xlabel('Recipe Size')
-    plt.ylabel('Initial Temperature')
-    plt.xticks(ticks=np.arange(len(pivot.columns)), labels=pivot.columns)
-    plt.yticks(ticks=np.arange(len(pivot.index)), labels=pivot.index)
-    # Annotate cells
-    for i in range(pivot.shape[0]):
-        for j in range(pivot.shape[1]):
-            plt.text(
-                j, i, f"{pivot.to_numpy()[i, j]:.2f}",
-                ha='center', va='center', color='w'
-            )
+def plot_results_barplot(results_df: pd.DataFrame):
+    """Plot profit barplot for each base product and recipe size."""
+    plt.figure(figsize=(10, 6))
+    recipe_sizes = sorted(results_df['Recipe Size'].unique())
+    base_products = results_df['Base Product'].unique()
+    bar_width = 0.8 / len(recipe_sizes)
+    x = np.arange(len(base_products))
+
+    for idx, recipe_size in enumerate(recipe_sizes):
+        profits = []
+        for bp in base_products:
+            row = results_df[
+                (results_df['Base Product'] == bp) &
+                (results_df['Recipe Size'] == recipe_size)
+            ]
+            if not row.empty:
+                profits.append(row['Profit'].to_numpy()[0])
+            else:
+                profits.append(0)
+        plt.bar(
+            x + idx * bar_width,
+            profits,
+            width=bar_width,
+            label=f"Recipe Size {recipe_size}"
+        )
+
+    plt.xlabel('Base Product')
+    plt.ylabel('Profit')
+    plt.title('Profit by Base Product and Recipe Size')
+    plt.xticks(x + bar_width * (len(recipe_sizes) - 1) / 2, base_products)
+    plt.legend(title='Recipe Size')
     plt.tight_layout()
-    plt.savefig('../plots/profit_heatmap.svg')
+    plt.savefig('../plots/profit_barplot.svg')
     plt.close()
