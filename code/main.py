@@ -33,7 +33,7 @@ simulation_data = {
     'base_product': ['Cocaine'],
     'recipe_size': [15],
     'batch_size': [10_000],
-    'n_steps': [1000],
+    'n_steps': [100],
     'initial_temperature': [100.0],
     'alpha': [0.99],
 }

@@ -1,8 +1,8 @@
 """Script to create Mixing Chain."""
 import torch
 from tensors import Database, State
+from tqdm import trange
 from typing import List, Tuple
-
 
 class ChainSimulation(Database):
     """Class to simulate the mixing chain."""
@@ -110,7 +110,7 @@ class ChainSimulation(Database):
         )
 
         with torch.no_grad():
-            for b in range(n_batches):
+            for b in trange(n_batches, desc="Batches", leave=False):
                 torch.cuda.empty_cache()
                 # Define current state
                 current_state = State(
@@ -124,7 +124,8 @@ class ChainSimulation(Database):
                     dtype=torch.float32,
                     device=self.device
                 )
-                for t in range(n_steps):
+                for t in trange(
+                    n_steps, desc=f"Steps (Batch {b + 1})", leave=False):
                     # Store recipes
                     sim_recipes[
                         t, :, b * batch_size: (b + 1) * batch_size
@@ -150,7 +151,6 @@ class ChainSimulation(Database):
 
                     # Decreases temperature with geometric schedule
                     temperature *= alpha
-
         # Calculates objective
         profits = sim_values - sim_costs
 
