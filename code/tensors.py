@@ -202,7 +202,7 @@ class State(Database):
         return effects
 
     def get_recipes(self) -> torch.Tensor:
-        """Get current state (recipes) tensor."""
+        """Get current recipes tensor."""
         return self.recipes.clone()
 
     def get_neighbour_recipes(self) -> torch.Tensor:
@@ -226,7 +226,9 @@ class State(Database):
         one_hot = torch.nn.functional.one_hot(
             recipes.long(), num_classes=self.n_ingredients + 1
         )
-        ingredients_count = one_hot.sum(dim=0).T.float()[:-1, :]
+        ingredients_count = one_hot.sum(dim=0).T.float()[:-1, :].to(
+            device=self.device
+        )
         return ingredients_count
 
     def cost(self, recipes: Union[torch.Tensor, None] = None) -> float:
@@ -405,8 +407,7 @@ class State(Database):
         self.neighbour_recipes = neighbour_recipes
 
         # Compute neighbour effects from recipe
-        neighbour_effects = self.mix_recipes(neighbour_recipes)
-        self.neighbour_effects = neighbour_effects
+        self.neighbour_effects = self.mix_recipes(neighbour_recipes)
 
     def neighbours_acceptance(self, temperature: torch.Tensor) -> torch.Tensor:
         """Calculates probability of choosing each ingredient.
@@ -482,3 +483,35 @@ class State(Database):
             effects = self.mix_ingredients(recipe_step, effects)
 
         return effects
+
+    def correct_recipe(self, recipe: torch.Tensor):
+        """Correct recipe removing unused ingredients."""
+        # Reshape recipe
+        recipe = recipe.reshape((-1, 1))
+
+        # Create the initial effects tensor
+        postmix_effects = torch.zeros(
+            (self.n_effects, 1),
+            dtype=torch.float32,
+            device=self.device
+        )
+
+        # Define initial effect as the effect of the base product
+        postmix_effects[self.product_effect, :] = 1
+
+        # Mix each step of recipe
+        for step in range(1, self.recipe_size + 1):
+            # Get pre mix effects
+            premix_effects = postmix_effects.clone()
+
+            # Fetch recipes and effects step
+            recipe_step = recipe[step - 1].int()
+
+            # Mix ingredients and store resultant effects tensor
+            postmix_effects = self.mix_ingredients(recipe_step, premix_effects)
+
+            # Remove ingredient if pre and post mix effects
+            if (postmix_effects - premix_effects).sum(dim=0) == 0:
+                recipe[step - 1] = self.n_ingredients
+
+        return recipe
