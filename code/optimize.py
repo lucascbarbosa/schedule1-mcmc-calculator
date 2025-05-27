@@ -1,4 +1,4 @@
-"""Main script."""
+"""Script to optimize recipe."""
 import itertools
 import pandas as pd
 import torch

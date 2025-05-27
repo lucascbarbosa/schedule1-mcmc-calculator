@@ -4,6 +4,7 @@ from tensors import Database, State
 from tqdm import trange
 from typing import List, Tuple
 
+
 class ChainSimulation(Database):
     """Class to simulate the mixing chain."""
     def __init__(self):
@@ -151,6 +152,7 @@ class ChainSimulation(Database):
 
                     # Decreases temperature with geometric schedule
                     temperature *= alpha
+
         # Calculates objective
         profits = sim_values - sim_costs
 
@@ -178,3 +180,30 @@ class ChainSimulation(Database):
         }
 
         return results_data, results_opt
+
+    def mix_recipe(self, base_product: str, recipe: List[str]) -> dict:
+        """Mix a list of ingredients."""
+        # Define state
+        state = State(
+            base_product=base_product,
+            batch_size=1,
+            recipe_size=len(recipe),
+            objective_function='profit',
+            create_recipes=False
+        )
+
+        # Encode recipe
+        recipe_encoded = self._encode_recipes(recipe).to(device=self.device)
+        state.recipes = recipe_encoded
+
+        # Mix recipe
+        state.effects = state.mix_recipes(recipe_encoded)
+
+        # Return results
+        return {
+            "recipe": recipe,
+            "effects": self._decode_effects(state.get_effects()),
+            "cost": float(state.cost()),
+            "value": float(state.value()),
+            "profit": float(state.profit()),
+        }

@@ -126,6 +126,7 @@ class State(Database):
         batch_size: int,
         recipe_size: int,
         objective_function: str,
+        create_recipes: bool = True,
     ):
         """Create initial ingredients and effects tensors.
 
@@ -135,9 +136,11 @@ class State(Database):
             recipe_size (int): Number of steps in simulation.
             objective_function (str, optional): Objective function used for
             Boltzmann distribution. Defaults to `profit`.
+            create_recipes (bool, optional): Create random recipes.
+            Defaults to `True`.
 
         Raises:
-            ValueError: If chosen based product.
+            ValueError: Invalid base product.
         """
         # Define global variables
         super().__init__()
@@ -157,8 +160,16 @@ class State(Database):
         self.product_value = base_product["value"].iloc[0]
 
         # Create state tensors
-        self.recipes = self.create_recipes()
-        self.effects = self.mix_recipes(self.recipes)
+        if create_recipes:
+            self.recipes = self.create_recipes()
+            self.effects = self.mix_recipes(self.recipes)
+        else:
+            self.recipes = torch.zeros(
+                (self.recipe_size, self.batch_size),
+                dtype=torch.float32,
+                device=self.device
+            )
+            self.effects = self.create_effects()
 
     def create_recipes(self) -> torch.Tensor:
         """Create a random recipe tensor.
