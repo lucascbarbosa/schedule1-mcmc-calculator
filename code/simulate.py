@@ -156,16 +156,20 @@ class ChainSimulation(Database):
         # Calculates profit
         profits = sim_values - sim_costs
 
-        # Fetch optimal recipe and correct it
+        # Fetch optimal recipe
         id_opt = torch.where(profits == profits.max())
         opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
+
+        # Correct recipe and cost
         recipe_opt = current_state.correct_recipe(
             sim_recipes[opt_step, :, opt_sim]
         )
-
-        # Correct metrics
         cost_opt = float(current_state.cost(recipe_opt))
+
+        # Extract original value
         value_opt = float(sim_values[opt_step, opt_sim])
+
+        # Calculates new profit
         profit_opt = value_opt - cost_opt
 
         # Decode recipe and effects tensors
@@ -207,12 +211,14 @@ class ChainSimulation(Database):
         # Mix recipe
         state.effects = state.mix_recipes(recipe)
 
-        # Correct recipe
+        # Correct recipe and cost
         recipe = state.correct_recipe(recipe)
-
-        # Fetch metrics
         cost = float(state.cost(recipe))
+
+        # Fetch original value
         value = float(state.value())
+
+        # Calculates profit
         profit = value - cost
 
         # Decode recipe and effects tensors
