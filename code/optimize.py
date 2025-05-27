@@ -66,7 +66,7 @@ for (
         alpha=alpha,
         initial_temperature=initial_temperature,
     )
-    print("Optimal Results:")
+    print("\nOptimal Results:")
     print(f"# Recipe: {results_opt['recipe']}")
     print(f"# Effects: {results_opt['effects']}")
     print(f"# Cost: {results_opt['cost']}")
