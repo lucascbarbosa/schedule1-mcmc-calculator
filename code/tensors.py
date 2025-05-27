@@ -224,9 +224,9 @@ class State(Database):
         contains the count of each ingredient for that batch.
         """
         one_hot = torch.nn.functional.one_hot(
-            recipes.long(), num_classes=self.n_ingredients
+            recipes.long(), num_classes=self.n_ingredients + 1
         )
-        ingredients_count = one_hot.sum(dim=0).T.float()
+        ingredients_count = one_hot.sum(dim=0).T.float()[:-1, :]
         return ingredients_count
 
     def cost(self, recipes: Union[torch.Tensor, None] = None) -> float:
@@ -386,7 +386,15 @@ class State(Database):
 
         # If new value >= current, increment by 1 to skip current value
         mask = (change_values >= current_values)
-        change_values[mask] += 1
+        # Randomly decide to add or subtract 1 (but not both at once)
+        direction = torch.randint(
+            0, 2,
+            change_values.shape,
+            device=self.device,
+            dtype=torch.float32
+        ) * 2 - 1  # -1 or +1
+        # If new value >= current, apply direction (+1 or -1)
+        change_values[mask] += direction[mask]
 
         # Ensure new values do not exceed self.n_ingredients - 1
         change_values = change_values.clamp(max=self.n_ingredients - 1)
