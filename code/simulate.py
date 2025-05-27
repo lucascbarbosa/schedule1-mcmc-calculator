@@ -46,7 +46,7 @@ class ChainSimulation(Database):
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
         for ingredient_id in id_list:
-            if ingredient_id != self.n_ingredients:
+            if ingredient_id < self.n_ingredients:
                 names.append(id_to_name[ingredient_id])
         return names
 
@@ -153,17 +153,25 @@ class ChainSimulation(Database):
                     # Decreases temperature with geometric schedule
                     temperature *= alpha
 
-        # Calculates objective
+        # Calculates profit
         profits = sim_values - sim_costs
 
-        # Fetch optimal recipe
+        # Fetch optimal recipe and correct it
         id_opt = torch.where(profits == profits.max())
         opt_step, opt_sim = id_opt[0][0], id_opt[1][0]
-        recipe_opt = self._decode_recipes(sim_recipes[opt_step, :, opt_sim])
-        effects_opt = self._decode_effects(sim_effects[opt_step, :, opt_sim])
-        cost_opt = float(sim_costs[opt_step, opt_sim])
+        recipe_opt = current_state.correct_recipe(
+            sim_recipes[opt_step, :, opt_sim]
+        )
+
+        # Correct metrics
+        cost_opt = float(current_state.cost(recipe_opt))
         value_opt = float(sim_values[opt_step, opt_sim])
-        profit_opt = float(profits[opt_step, opt_sim])
+        profit_opt = value_opt - cost_opt
+
+        # Decode recipe and effects tensors
+        recipe_opt = self._decode_recipes(recipe_opt.ravel())
+        effects_opt = self._decode_effects(sim_effects[opt_step, :, opt_sim])
+
         results_data = {
             "recipes": sim_recipes,
             "effects": sim_effects,
@@ -193,17 +201,28 @@ class ChainSimulation(Database):
         )
 
         # Encode recipe
-        recipe_encoded = self._encode_recipes(recipe).to(device=self.device)
-        state.recipes = recipe_encoded
+        recipe = self._encode_recipes(recipe).to(device=self.device)
+        state.recipes = recipe
 
         # Mix recipe
-        state.effects = state.mix_recipes(recipe_encoded)
+        state.effects = state.mix_recipes(recipe)
 
-        # Return results
+        # Correct recipe
+        recipe = state.correct_recipe(recipe)
+
+        # Fetch metrics
+        cost = float(state.cost(recipe))
+        value = float(state.value())
+        profit = value - cost
+
+        # Decode recipe and effects tensors
+        recipe = self._decode_recipes(recipe.ravel())
+        effects = self._decode_effects(state.effects)
+
         return {
             "recipe": recipe,
-            "effects": self._decode_effects(state.get_effects()),
-            "cost": float(state.cost()),
-            "value": float(state.value()),
-            "profit": float(state.profit()),
+            "effects": effects,
+            "cost": cost,
+            "value": value,
+            "profit": profit,
         }
