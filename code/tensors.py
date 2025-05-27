@@ -399,7 +399,7 @@ class State(Database):
         change_values[mask] += direction[mask]
 
         # Ensure new values do not exceed self.n_ingredients - 1
-        change_values = change_values.clamp(max=self.n_ingredients - 1)
+        change_values = change_values.clamp(min=0, max=self.n_ingredients - 1)
         neighbour_recipes[
             change_ids,
             torch.arange(change_ids.shape[0])
