@@ -36,7 +36,6 @@ def plot_final_step_ingredients_barplot(
     fig, ax = plt.subplots(figsize=(12, 6))
     indices = np.arange(1, recipe_size + 1)
     bottom = np.zeros(recipe_size)
-    print(ingredients_proportion)
     for i, name in enumerate(ingredients_name):
         ax.bar(
             indices,
