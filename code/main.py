@@ -28,12 +28,10 @@ def to_cpu_recursive(obj):
 chain = ChainSimulation()
 
 simulation_data = {
-    # 'base_product': chain.products_df['product_name'].to_numpy(),
-    # 'recipe_size': [7, 8, 9, 10],
-    'base_product': ['Cocaine'],
-    'recipe_size': [15],
+    'base_product': chain.products_df['product_name'].to_numpy(),
+    'recipe_size': [7, 8, 9, 10],
     'batch_size': [10_000],
-    'n_steps': [100],
+    'n_steps': [1000],
     'initial_temperature': [100.0],
     'alpha': [0.99],
 }
