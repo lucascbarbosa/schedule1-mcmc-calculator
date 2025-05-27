@@ -14,31 +14,37 @@ def plot_final_step_ingredients_barplot(
     recipe_size: int,
 ):
     """Plot ingredients relative frequency per recipe position in final step."""
-    # Get last step: shape (recipe_size, batch_size)
-    last_step = recipes[-1]  # shape: (recipe_size, batch_size)
+    # Get recipe at last step
+    recipe = recipes[-1].int()
+    recipe_size = recipe.shape[0]
     n_ingredients = len(ingredients_name)
 
-    # For each position in the recipe, count ingredient occurrences
-    counts = torch.zeros((recipe_size, n_ingredients), dtype=torch.float32)
-    for pos in range(recipe_size):
-        pos_ids = last_step[pos].to(torch.int64)
-        counts[pos] = torch.bincount(pos_ids, minlength=n_ingredients)
+    # Count ingredient occurrences for last step per recipe position
+    ingredients_count = torch.stack([
+        torch.bincount(
+            recipe[i, :].reshape(-1), minlength=n_ingredients + 1
+        )
+        for i in range(recipe_size)
+    ])[:, :-1]
 
-    # Convert to relative frequency
-    rel_freq = (counts / counts.sum(dim=1, keepdim=True)).cpu().numpy()
+    ingredients_proportion = (
+        ingredients_count /
+        ingredients_count.sum()
+    ).cpu().numpy()  # shape: (recipe_size, n_ingredients)
 
     # Plot
     fig, ax = plt.subplots(figsize=(12, 6))
     indices = np.arange(1, recipe_size + 1)
     bottom = np.zeros(recipe_size)
+    print(ingredients_proportion)
     for i, name in enumerate(ingredients_name):
         ax.bar(
             indices,
-            rel_freq[:, i],
+            ingredients_proportion[:, i],
             bottom=bottom,
             label=name
         )
-        bottom += rel_freq[:, i]
+        bottom += ingredients_proportion[:, i]
 
     ax.set_xlabel("Recipe Position")
     ax.set_ylabel("Relative Frequency")
@@ -70,10 +76,11 @@ def plot_ingredients_lineplot(
     # Flatten all batches for each step and count ingredient occurrences
     ingredients_count = torch.stack([
         torch.bincount(
-            recipes[step].reshape(-1), minlength=n_ingredients
+            recipes[step].reshape(-1), minlength=n_ingredients + 1
         )
         for step in range(n_steps)
-    ])
+    ])[:, :-1]
+
     ingredients_proportion = (
         ingredients_count /
         ingredients_count.sum(dim=1, keepdim=True)
