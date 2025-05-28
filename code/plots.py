@@ -61,13 +61,13 @@ def plot_final_step_ingredients_barplot(
     plt.close()
 
 
-def plot_ingredients_lineplot(
+def plot_ingredients_heatmap(
     recipes: torch.Tensor,
     ingredients_name: List[str],
     base_product: str,
     recipe_size: int,
 ):
-    """Plot ingredients relative frequency per step as line plot."""
+    """Plot ingredients relative frequency per step as a heatmap."""
     recipes = recipes.int()
     n_steps = recipes.shape[0]
     n_ingredients = len(ingredients_name)
@@ -85,32 +85,32 @@ def plot_ingredients_lineplot(
         ingredients_count.sum(dim=1, keepdim=True)
     ).cpu().numpy().T  # shape: (n_ingredients, n_steps)
 
-    steps = np.arange(n_steps)
     fig, ax = plt.subplots(figsize=(12, 6))
-    for i, name in enumerate(ingredients_name):
-        ax.plot(steps, ingredients_proportion[i], label=name)
+    im = ax.imshow(ingredients_proportion, aspect='auto', cmap='viridis', origin='lower')
     ax.set_xlabel('Step')
-    ax.set_ylabel('Relative frequency')
+    ax.set_ylabel('Ingredient')
     ax.set_title(
-        "Relative frequency of ingredients per simulation step\n"
+        "Relative frequency of ingredients per simulation step (heatmap)\n"
         f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
     ax.set_xlim(0.5, n_steps + 0.5)
-    ax.legend(title='Ingredient')
+    ax.set_yticks(np.arange(n_ingredients))
+    ax.set_yticklabels(ingredients_name)
+    fig.colorbar(im, ax=ax, label='Relative frequency')
     fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_heatmap.svg")
     plt.close()
 
 
-def plot_effects_lineplot(
+def plot_effects_heatmap(
     effects: torch.Tensor,
     effects_name: List[str],
     base_product: str,
     recipe_size: int,
 ):
-    """Plot the relative frequency of each effect as a line plot."""
+    """Plot the relative frequency of each effect as a heatmap."""
     n_steps, n_effects, batch_size = effects.shape
 
     # Calculate mean presence of each effect per step
@@ -127,21 +127,22 @@ def plot_effects_lineplot(
     # Transpose to shape (n_effects, n_steps) for plotting
     effects_frequency = effects_frequency.cpu().numpy().T
 
-    steps = np.arange(n_steps)
     fig, ax = plt.subplots(figsize=(12, 6))
-    for i, name in enumerate(effects_name):
-        ax.plot(steps, effects_frequency[i], label=name)
+    im = ax.imshow(effects_frequency, aspect='auto', cmap='viridis', origin='lower')
     ax.set_xlabel('Step')
-    ax.set_ylabel('Relative frequency')
+    ax.set_ylabel('Effect')
     ax.set_title(
-        "Relative frequency of effects per simulation step\n"
+        "Relative frequency of effects per simulation step (heatmap)\n"
         f"Base Product: {base_product}, Recipe size: {recipe_size}",
         fontsize=14,
         loc='center'
     )
     ax.set_xlim(0.5, n_steps + 0.5)
-    ax.legend(title='Effect')
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_lineplot.svg")
+    ax.set_yticks(np.arange(n_effects))
+    ax.set_yticklabels(effects_name)
+    fig.colorbar(im, ax=ax, label='Relative frequency')
+    fig.tight_layout()
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_heatmap.svg")
     plt.close()
 
 

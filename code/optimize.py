@@ -4,9 +4,9 @@ import itertools
 import pandas as pd
 import torch
 from plots import (
-    plot_effects_lineplot,
     plot_final_step_ingredients_barplot,
-    plot_ingredients_lineplot,
+    plot_effects_heatmap,
+    plot_ingredients_heatmap,
     plot_profit_lineplot,
     plot_recipes_sankey,
     plot_profit_barplot,
@@ -101,13 +101,13 @@ for (
         base_product=base_product,
         recipe_size=recipe_size,
     )
-    plot_ingredients_lineplot(
+    plot_ingredients_heatmap(
         recipes=results_data["recipes"],
         ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
     )
-    plot_effects_lineplot(
+    plot_effects_heatmap(
         effects=results_data["effects"],
         effects_name=chain.effects_df["effect_name"].tolist(),
         base_product=base_product,
