@@ -475,9 +475,9 @@ class State(Database):
         effects = self.create_effects()
 
         # Mix each step of recipe
-        for step in range(1, self.recipe_size + 1):
+        for step in range(self.recipe_size):
             # Fetch recipes and effects step
-            recipe_step = recipes[step - 1, :].int()
+            recipe_step = recipes[step, :].int()
 
             # Mix ingredients and store resultant effects tensor
             effects = self.mix_ingredients(recipe_step, effects)
@@ -500,18 +500,18 @@ class State(Database):
         postmix_effects[self.product_effect, :] = 1
 
         # Mix each step of recipe
-        for step in range(1, self.recipe_size + 1):
+        for step in range(self.recipe_size):
             # Get pre mix effects
             premix_effects = postmix_effects.clone()
 
             # Fetch recipes and effects step
-            recipe_step = recipe[step - 1].int()
+            recipe_step = recipe[step].int()
 
             # Mix ingredients and store resultant effects tensor
             postmix_effects = self.mix_ingredients(recipe_step, premix_effects)
 
             # Remove ingredient if pre and post mix effects
-            if (postmix_effects - premix_effects).sum(dim=0) == 0:
-                recipe[step - 1] = self.n_ingredients
+            if torch.equal(postmix_effects, premix_effects):
+                recipe[step] = self.n_ingredients
 
         return recipe
