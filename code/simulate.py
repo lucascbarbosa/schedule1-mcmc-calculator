@@ -60,27 +60,24 @@ class ChainSimulation(Database):
     def optimize_recipes(
         self,
         base_product: str,
-        batch_size: int,
+        n_simulations: int,
         n_steps: int,
         initial_temperature: float,
         alpha: float = 0.99,
         recipe_size: int = 7,
-        n_batches: int = 1,
         objective_function: str = "profit"
     ) -> Tuple[List[str], List[str], float, float, float]:
         """Run parallelized simulation.
 
         Args:
             base_product (str): Base product.
-            batch_size (int): Number of recipes in batch.
-            distribution.
+            n_simulations (int): Number of recipes simulated ate the same time.
             n_steps (int): Number of steps simulation steps.
             initial_temperature (float): Initial value for Boltzmann
             temperature. Defaults to 1.0.
             alpha (float, optional): Boltzmann temperature geometric factor.
             recipe_size (int, optional): Number of ingredients in recipe.
             Defaults to 7.
-            n_batches (int): Number of batches simulated.
             objective_function (str, optional): Objective function used for
             Boltzmann distribution. Defaults to `profit`.
 
@@ -90,68 +87,58 @@ class ChainSimulation(Database):
         """
         # Output tensors
         sim_recipes = torch.zeros(
-            (n_steps, recipe_size, n_batches * batch_size),
+            (n_steps, recipe_size, n_simulations),
             dtype=torch.float32,
             device="cpu"
         )
         sim_effects = torch.zeros(
-            (n_steps, self.n_effects, n_batches * batch_size),
+            (n_steps, self.n_effects, n_simulations),
             dtype=torch.float32,
             device="cpu"
         )
         sim_costs = torch.zeros(
-            (n_steps, n_batches * batch_size),
+            (n_steps, n_simulations),
             dtype=torch.float32,
             device="cpu"
         )
         sim_values = torch.zeros(
-            (n_steps, n_batches * batch_size),
+            (n_steps, n_simulations),
             dtype=torch.float32,
             device="cpu"
         )
 
         with torch.no_grad():
-            for b in trange(n_batches, desc="Batches", leave=False):
-                torch.cuda.empty_cache()
-                # Define current state
-                current_state = State(
-                    base_product=base_product,
-                    batch_size=batch_size,
-                    recipe_size=recipe_size,
-                    objective_function=objective_function,
-                )
-                temperature = torch.tensor(
-                    initial_temperature,
-                    dtype=torch.float32,
-                    device=self.device
-                )
-                for t in trange(
-                    n_steps, desc=f"Steps (Batch {b + 1})", leave=False):
-                    # Store recipes
-                    sim_recipes[
-                        t, :, b * batch_size: (b + 1) * batch_size
-                    ] = current_state.get_recipes()
+            torch.cuda.empty_cache()
+            # Define current state
+            current_state = State(
+                base_product=base_product,
+                n_simulations=n_simulations,
+                recipe_size=recipe_size,
+                objective_function=objective_function,
+            )
+            temperature = torch.tensor(
+                initial_temperature,
+                dtype=torch.float32,
+                device=self.device
+            )
+            for t in trange(n_steps, desc="Steps", leave=False):
+                # Store recipes
+                sim_recipes[t, :, :] = current_state.get_recipes()
 
-                    # Store effects
-                    sim_effects[
-                        t, :, b * batch_size:(b + 1) * batch_size
-                    ] = current_state.get_effects()
+                # Store effects
+                sim_effects[t :, :] = current_state.get_effects()
 
-                    # Store costs
-                    sim_costs[
-                        t, b * batch_size:(b + 1) * batch_size
-                    ] = current_state.cost()
+                # Store costs
+                sim_costs[t, :] = current_state.cost()
 
-                    # Store values
-                    sim_values[
-                        t, b * batch_size:(b + 1) * batch_size
-                    ] = current_state.value()
+                # Store values
+                sim_values[t, :] = current_state.value()
 
-                    # Evolve chain state
-                    current_state.walk(temperature)
+                # Evolve chain state
+                current_state.walk(temperature)
 
-                    # Decreases temperature with geometric schedule
-                    temperature *= alpha
+                # Decreases temperature with geometric schedule
+                temperature *= alpha
 
         # Calculates profit
         profits = sim_values - sim_costs
@@ -198,7 +185,7 @@ class ChainSimulation(Database):
         # Define state
         state = State(
             base_product=base_product,
-            batch_size=1,
+            n_simulations=1,
             recipe_size=len(recipe),
             objective_function='profit',
             create_recipes=False

@@ -1,4 +1,5 @@
 """Script to optimize recipe."""
+
 import itertools
 import pandas as pd
 import torch
@@ -27,30 +28,38 @@ def to_cpu_recursive(obj):
 # Optimize recipes
 chain = ChainSimulation()
 
-simulation_data = {
-    'base_product': chain.products_df['product_name'].to_numpy(),
-    'recipe_size': [7, 8, 9, 10],
-    'batch_size': [10_000],
-    'n_steps': [1000],
-    'initial_temperature': [100.0],
-    'alpha': [0.99],
-}
+# simulation_data = {
+#     'base_product': chain.products_df['product_name'].to_numpy(),
+#     'recipe_size': [7, 8, 9, 10],
+#     'n_simulations': [10_000],
+#     'n_steps': [1000],
+#     'initial_temperature': [100.0],
+#     'alpha': [0.99],
+# }
 
+simulation_data = {
+    "base_product": ["Cocaine"],
+    "recipe_size": [15],
+    "n_simulations": [5_000],
+    "n_steps": [5_000],
+    "initial_temperature": [200.0],
+    "alpha": [0.999],
+}
 results_df = []
 for (
     base_product,
     recipe_size,
-    batch_size,
+    n_simulations,
     n_steps,
     initial_temperature,
-    alpha
+    alpha,
 ) in itertools.product(
-    simulation_data['base_product'],
-    simulation_data['recipe_size'],
-    simulation_data['batch_size'],
-    simulation_data['n_steps'],
-    simulation_data['initial_temperature'],
-    simulation_data['alpha'],
+    simulation_data["base_product"],
+    simulation_data["recipe_size"],
+    simulation_data["n_simulations"],
+    simulation_data["n_steps"],
+    simulation_data["initial_temperature"],
+    simulation_data["alpha"],
 ):
     print("Running:")
     print(f"# Base Product: {base_product}")
@@ -60,7 +69,7 @@ for (
     print(f"# Alpha: {alpha}")
     results_data, results_opt = chain.optimize_recipes(
         base_product=base_product,
-        batch_size=batch_size,
+        n_simulations=n_simulations,
         n_steps=n_steps,
         recipe_size=recipe_size,
         alpha=alpha,
@@ -76,16 +85,16 @@ for (
 
     results_df.append(
         {
-            'Base Product': base_product,
-            'Recipe Size': recipe_size,
-            'Steps': n_steps,
-            'T0': initial_temperature,
-            'Alpha': alpha,
-            'Recipe': results_opt['recipe'],
-            'Effects': results_opt['effects'],
-            'Cost': results_opt['cost'],
-            'Value': results_opt['value'],
-            'Profit': results_opt['profit'],
+            "Base Product": base_product,
+            "Recipe Size": recipe_size,
+            "Steps": n_steps,
+            "T0": initial_temperature,
+            "Alpha": alpha,
+            "Recipe": results_opt["recipe"],
+            "Effects": results_opt["effects"],
+            "Cost": results_opt["cost"],
+            "Value": results_opt["value"],
+            "Profit": results_opt["profit"],
         }
     )
 
@@ -95,31 +104,31 @@ for (
 
     # Plot results immediately
     plot_final_step_ingredients_barplot(
-        recipes=results_data['recipes'],
-        ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
+        recipes=results_data["recipes"],
+        ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
     )
     plot_ingredients_lineplot(
-        recipes=results_data['recipes'],
-        ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
+        recipes=results_data["recipes"],
+        ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
     )
     plot_effects_lineplot(
-        effects=results_data['effects'],
-        effects_name=chain.effects_df['effect_name'].tolist(),
+        effects=results_data["effects"],
+        effects_name=chain.effects_df["effect_name"].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
     )
     plot_profit_lineplot(
-        profits=results_data['profits'],
+        profits=results_data["profits"],
         base_product=base_product,
         recipe_size=recipe_size,
     )
     plot_recipes_sankey(
-        recipes=results_data['recipes'],
-        ingredients_name=chain.ingredients_df['ingredient_name'].tolist(),
+        recipes=results_data["recipes"],
+        ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
         base_product=base_product,
         recipe_size=recipe_size,
     )
@@ -129,7 +138,7 @@ for (
     torch.cuda.empty_cache()
 
 results_df = pd.DataFrame(results_df)
-results_df.to_excel('../results/optimization_results.xlsx', index=False)
+results_df.to_excel("../results/optimization_results.xlsx", index=False)
 
 # Plot results heatmap
 plot_profit_barplot(results_df)

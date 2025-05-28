@@ -123,7 +123,7 @@ class State(Database):
     def __init__(
         self,
         base_product: str,
-        batch_size: int,
+        n_simulations: int,
         recipe_size: int,
         objective_function: str,
         create_recipes: bool = True,
@@ -132,7 +132,7 @@ class State(Database):
 
         Args:
             base_product (str): Base product used as source state.
-            batch_size (int): Number of simulations in batch.
+            n_simulations (int): Number of recipes simulated at the same time.
             recipe_size (int): Number of steps in simulation.
             objective_function (str, optional): Objective function used for
             Boltzmann distribution. Defaults to `profit`.
@@ -144,7 +144,7 @@ class State(Database):
         """
         # Define global variables
         super().__init__()
-        self.batch_size = batch_size
+        self.n_simulations = n_simulations
         self.recipe_size = recipe_size
         self.objective_function = objective_function
 
@@ -165,7 +165,7 @@ class State(Database):
             self.effects = self.mix_recipes(self.recipes)
         else:
             self.recipes = torch.zeros(
-                (self.recipe_size, self.batch_size),
+                (self.recipe_size, self.n_simulations),
                 dtype=torch.float32,
                 device=self.device
             )
@@ -174,12 +174,12 @@ class State(Database):
     def create_recipes(self) -> torch.Tensor:
         """Create a random recipe tensor.
 
-        Tensor of shape (recipe_size, batch_size) storing the ingredient id
+        Tensor of shape (recipe_size, n_simulations) storing the ingredient id
         used in a given recipe simulation and recipe step.
         """
         return torch.randint(
             0, self.n_ingredients,
-            (self.recipe_size, self.batch_size),
+            (self.recipe_size, self.n_simulations),
             dtype=torch.float32,
             device=self.device
         )
@@ -187,11 +187,11 @@ class State(Database):
     def create_effects(self) -> torch.Tensor:
         """Create a sparse binary effects tensor.
 
-        Tensor of shape (recipe_size, batch_size, n_effects) indicating
+        Tensor of shape (recipe_size, n_simulations, n_effects) indicating
         if the effect at a given recipe step and batch simulation is active.
         """
         effects = torch.zeros(
-            (self.n_effects, self.batch_size),
+            (self.n_effects, self.n_simulations),
             dtype=torch.float32,
             device=self.device
         )
@@ -220,7 +220,7 @@ class State(Database):
     def ingredients_count(self, recipes: torch.Tensor) -> torch.Tensor:
         """Count each ingredient in recipes for each batch (column).
 
-        Returns a tensor of shape (n_ingredients, batch_size) where each column
+        Returns a tensor of shape (n_ingredients, n_simulations) where each column
         contains the count of each ingredient for that batch.
         """
         one_hot = torch.nn.functional.one_hot(
@@ -315,13 +315,13 @@ class State(Database):
         """Apply effects transition rules for each ingredient."""
         # Fetch rules from each added ingredient
         rules_batch = self.rules[ingredients]
-        # shape: (batch_size, n_effects, n_effects)
+        # shape: (n_simulations, n_effects, n_effects)
 
         # Compute rules
         effects_result = torch.bmm(
             rules_batch,
             effects.T.unsqueeze(2)
-        ).squeeze(2).T  # shape: (n_effects, batch_size)
+        ).squeeze(2).T  # shape: (n_effects, n_simulations)
 
         # Detect all duplicates effects (> 1.0) and clamp them back to 1.0
         duplicated_mask = effects_result > 1.0

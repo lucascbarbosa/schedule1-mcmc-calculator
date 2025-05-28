@@ -111,7 +111,7 @@ def plot_effects_lineplot(
     recipe_size: int,
 ):
     """Plot the relative frequency of each effect as a line plot."""
-    n_steps, n_effects, batch_size = effects.shape
+    n_steps, n_effects, n_simulations = effects.shape
 
     # Calculate mean presence of each effect per step
     effects_frequency = torch.zeros(
@@ -121,7 +121,7 @@ def plot_effects_lineplot(
     for step in range(n_steps):
         effects_frequency[step] = (
             effects[step].sum(dim=1).float() /
-            batch_size
+            n_simulations
         )
 
     # Transpose to shape (n_effects, n_steps) for plotting
@@ -193,7 +193,7 @@ def plot_recipes_sankey(
 
     """
     # Use only the last step
-    last_step = recipes[-1]  # shape: (recipe_size, batch_size)
+    last_step = recipes[-1]  # shape: (recipe_size, n_simulations)
     recipe_size, n_recipes = last_step.shape
     n_ingredients = len(ingredients_name)
 
