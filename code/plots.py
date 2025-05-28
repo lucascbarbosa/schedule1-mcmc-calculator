@@ -27,7 +27,7 @@ def plot_final_step_ingredients_barplot(
         for i in range(recipe_size)
     ])[:, :-1]
 
-    ingredients_proportion = (
+    ingredients_frequency = (
         ingredients_count /
         ingredients_count.sum()
     ).cpu().numpy()  # shape: (recipe_size, n_ingredients)
@@ -39,11 +39,11 @@ def plot_final_step_ingredients_barplot(
     for i, name in enumerate(ingredients_name):
         ax.bar(
             recipe_positions,
-            ingredients_proportion[:, i],
+            ingredients_frequency[:, i],
             bottom=bottom,
             label=name
         )
-        bottom += ingredients_proportion[:, i]
+        bottom += ingredients_frequency[:, i]
 
     ax.set_xlabel("Recipe Position")
     ax.set_ylabel("Relative Frequency")
@@ -80,13 +80,18 @@ def plot_ingredients_heatmap(
         for step in range(n_steps)
     ])[:, :-1]
 
-    ingredients_proportion = (
+    ingredients_frequency = (
         ingredients_count /
         ingredients_count.sum(dim=1, keepdim=True)
     ).cpu().numpy().T  # shape: (n_ingredients, n_steps)
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    im = ax.imshow(ingredients_proportion, aspect='auto', cmap='viridis', origin='lower')
+    im = ax.imshow(
+        ingredients_frequency,
+        aspect='auto',
+        cmap='viridis',
+        origin='lower'
+    )
     ax.set_xlabel('Step')
     ax.set_ylabel('Ingredient')
     ax.set_title(
@@ -128,7 +133,12 @@ def plot_effects_heatmap(
     effects_frequency = effects_frequency.cpu().numpy().T
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    im = ax.imshow(effects_frequency, aspect='auto', cmap='viridis', origin='lower')
+    im = ax.imshow(
+        effects_frequency,
+        aspect='auto',
+        cmap='viridis',
+        origin='lower'
+    )
     ax.set_xlabel('Step')
     ax.set_ylabel('Effect')
     ax.set_title(
