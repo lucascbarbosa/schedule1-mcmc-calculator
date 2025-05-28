@@ -28,23 +28,15 @@ def to_cpu_recursive(obj):
 # Optimize recipes
 chain = ChainSimulation()
 
-# simulation_data = {
-#     'base_product': chain.products_df['product_name'].to_numpy(),
-#     'recipe_size': [7, 8, 9, 10],
-#     'n_simulations': [10_000],
-#     'n_steps': [1000],
-#     'initial_temperature': [100.0],
-#     'alpha': [0.99],
-# }
-
 simulation_data = {
-    "base_product": ["Cocaine"],
-    "recipe_size": [15],
-    "n_simulations": [5_000],
-    "n_steps": [5_000],
-    "initial_temperature": [200.0],
-    "alpha": [0.999],
+    'base_product': chain.products_df['product_name'].to_numpy(),
+    'recipe_size': [7, 8, 9, 10],
+    'n_simulations': [10_000],
+    'n_steps': [1000],
+    'initial_temperature': [100.0],
+    'alpha': [0.99],
 }
+
 results_df = []
 for (
     base_product,
