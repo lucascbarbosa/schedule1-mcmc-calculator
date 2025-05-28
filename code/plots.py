@@ -34,11 +34,11 @@ def plot_final_step_ingredients_barplot(
 
     # Plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    indices = np.arange(1, recipe_size + 1)
+    recipe_positions = np.arange(1, recipe_size + 1)
     bottom = np.zeros(recipe_size)
     for i, name in enumerate(ingredients_name):
         ax.bar(
-            indices,
+            recipe_positions,
             ingredients_proportion[:, i],
             bottom=bottom,
             label=name
@@ -53,8 +53,8 @@ def plot_final_step_ingredients_barplot(
         fontsize=14,
         loc='center'
     )
-    ax.set_xticks(indices)
-    ax.set_xticklabels([str(i) for i in indices])
+    ax.set_xticks(recipe_positions)
+    ax.set_xticklabels([str(i) for i in recipe_positions])
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_barplot.svg")
@@ -97,7 +97,7 @@ def plot_ingredients_lineplot(
         fontsize=14,
         loc='center'
     )
-    ax.set_xticks(steps[::10])
+    ax.set_xlim(0.5, n_steps + 0.5)
     ax.legend(title='Ingredient')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_lineplot.svg")
@@ -111,7 +111,7 @@ def plot_effects_lineplot(
     recipe_size: int,
 ):
     """Plot the relative frequency of each effect as a line plot."""
-    n_steps, n_effects, n_simulations = effects.shape
+    n_steps, n_effects, batch_size = effects.shape
 
     # Calculate mean presence of each effect per step
     effects_frequency = torch.zeros(
@@ -121,7 +121,7 @@ def plot_effects_lineplot(
     for step in range(n_steps):
         effects_frequency[step] = (
             effects[step].sum(dim=1).float() /
-            n_simulations
+            batch_size
         )
 
     # Transpose to shape (n_effects, n_steps) for plotting
@@ -139,9 +139,8 @@ def plot_effects_lineplot(
         fontsize=14,
         loc='center'
     )
-    ax.set_xticks(steps[::10])
+    ax.set_xlim(0.5, n_steps + 0.5)
     ax.legend(title='Effect')
-    # fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_lineplot.svg")
     plt.close()
 
@@ -193,7 +192,7 @@ def plot_recipes_sankey(
 
     """
     # Use only the last step
-    last_step = recipes[-1]  # shape: (recipe_size, n_simulations)
+    last_step = recipes[-1]  # shape: (recipe_size, batch_size)
     recipe_size, n_recipes = last_step.shape
     n_ingredients = len(ingredients_name)
 
