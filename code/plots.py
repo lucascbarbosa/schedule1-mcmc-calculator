@@ -47,12 +47,12 @@ def plot_final_step_ingredients_barplot(
 
     ax.set_xlabel("Recipe Position")
     ax.set_ylabel("Relative Frequency")
-    ax.set_title(
-        "Ingredient relative frequency per recipe position (at last step)\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}",
-        fontsize=14,
-        loc='center'
-    )
+    # ax.set_title(
+    #     "Ingredient relative frequency per recipe position (at last step)\n"
+    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
+    #     fontsize=14,
+    #     loc='center'
+    # )
     ax.set_xticks(recipe_positions)
     ax.set_xticklabels([str(i) for i in recipe_positions])
     ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
@@ -94,12 +94,12 @@ def plot_ingredients_heatmap(
     )
     ax.set_xlabel('Step')
     ax.set_ylabel('Ingredient')
-    ax.set_title(
-        "Relative frequency of ingredients per simulation step (heatmap)\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}",
-        fontsize=14,
-        loc='center'
-    )
+    # ax.set_title(
+    #     "Relative frequency of ingredients per simulation step (heatmap)\n"
+    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
+    #     fontsize=14,
+    #     loc='center'
+    # )
     ax.set_xlim(0.5, n_steps + 0.5)
     ax.set_yticks(np.arange(n_ingredients))
     ax.set_yticklabels(ingredients_name)
@@ -141,12 +141,12 @@ def plot_effects_heatmap(
     )
     ax.set_xlabel('Step')
     ax.set_ylabel('Effect')
-    ax.set_title(
-        "Relative frequency of effects per simulation step (heatmap)\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}",
-        fontsize=14,
-        loc='center'
-    )
+    # ax.set_title(
+    #     "Relative frequency of effects per simulation step (heatmap)\n"
+    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
+    #     fontsize=14,
+    #     loc='center'
+    # )
     ax.set_xlim(0.5, n_steps + 0.5)
     ax.set_yticks(np.arange(n_effects))
     ax.set_yticklabels(effects_name)
@@ -176,12 +176,12 @@ def plot_profit_lineplot(
     )
     ax.set_xlabel('Step')
     ax.set_ylabel('Profit')
-    ax.set_title(
-        "Mean profit per step with confidence interval per simulation step\n"
-        f"Base Product: {base_product}, Recipe size: {recipe_size}",
-        fontsize=14,
-        loc='center'
-    )
+    # ax.set_title(
+    #     "Mean profit per step with confidence interval per simulation step\n"
+    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
+    #     fontsize=14,
+    #     loc='center'
+    # )
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_profit_lineplot.svg")
@@ -261,11 +261,10 @@ def plot_recipes_sankey(
     fig.update_layout(
         width=1200,
         height=600,
-        title_text=(
-            "Sankey Diagram of Ingredients per recipe position (at last step)\n"
-            f"Base Product: {base_product}, Recipe size: {recipe_size}"
-        ),
-        font_size=12
+        # title_text=(
+        #     "Sankey Diagram of Ingredients per recipe position (at last step)\n"
+        #     f"Base Product: {base_product}, Recipe size: {recipe_size}"
+        # ),
     )
     fig.write_image(f"../plots/{base_product}_{recipe_size}_recipes_sankey.svg")
     plt.close()
