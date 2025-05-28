@@ -89,22 +89,22 @@ class ChainSimulation(Database):
         sim_recipes = torch.zeros(
             (n_steps, recipe_size, n_simulations),
             dtype=torch.float32,
-            device="cpu"
+            device=self.device
         )
         sim_effects = torch.zeros(
             (n_steps, self.n_effects, n_simulations),
             dtype=torch.float32,
-            device="cpu"
+            device=self.device
         )
         sim_costs = torch.zeros(
             (n_steps, n_simulations),
             dtype=torch.float32,
-            device="cpu"
+            device=self.device
         )
         sim_values = torch.zeros(
             (n_steps, n_simulations),
             dtype=torch.float32,
-            device="cpu"
+            device=self.device
         )
 
         with torch.no_grad():
