@@ -373,37 +373,27 @@ class State(Database):
             dtype=torch.int,
             device=self.device
         )
-        current_values = neighbour_recipes[
+        current_ingredients = neighbour_recipes[
             change_ids,
             torch.arange(change_ids.shape[0])
         ]
 
         # Randomly generate new ingredient ids (different from the current one)
-        change_values = torch.randint(
+        change_ingredients = torch.randint(
             0, self.n_ingredients - 1,
             (neighbour_recipes.shape[1],),
             dtype=torch.float32,
             device=self.device
         )
+        # If rand_val >= current_value, increment by 1 to skip current value
+        change_ingredients = change_ingredients + (
+            change_ingredients >= current_ingredients)
 
-        # If new value >= current, increment by 1 to skip current value
-        mask = (change_values >= current_values)
-        # Randomly decide to add or subtract 1 (but not both at once)
-        direction = torch.randint(
-            0, 2,
-            change_values.shape,
-            device=self.device,
-            dtype=torch.float32
-        ) * 2 - 1  # -1 or +1
-        # If new value >= current, apply direction (+1 or -1)
-        change_values[mask] += direction[mask]
-
-        # Ensure new values do not exceed self.n_ingredients - 1
-        change_values = change_values.clamp(min=0, max=self.n_ingredients - 1)
+        # Change ingredient values
         neighbour_recipes[
             change_ids,
             torch.arange(change_ids.shape[0])
-        ] = change_values
+        ] = change_ingredients
         self.neighbour_recipes = neighbour_recipes
 
         # Compute neighbour effects from recipe
