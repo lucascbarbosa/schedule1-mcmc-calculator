@@ -41,7 +41,7 @@ class ChainSimulation(Database):
 
     def _decode_recipes(self, recipe: torch.Tensor):
         """Convert from ingredients id to name."""
-        id_list = recipe.tolist()
+        id_list = recipe.ravel().tolist()
         id_to_name = self.ingredients_df.set_index(
             "ingredient_id")["ingredient_name"].to_dict()
         names = []
@@ -173,7 +173,7 @@ class ChainSimulation(Database):
         profit_opt = value_opt - cost_opt
 
         # Decode recipe and effects tensors
-        recipe_opt = self._decode_recipes(recipe_opt.ravel())
+        recipe_opt = self._decode_recipes(recipe_opt)
         effects_opt = self._decode_effects(sim_effects[opt_step, :, opt_sim])
 
         results_data = {
@@ -222,7 +222,7 @@ class ChainSimulation(Database):
         profit = value - cost
 
         # Decode recipe and effects tensors
-        recipe = self._decode_recipes(recipe.ravel())
+        recipe = self._decode_recipes(recipe)
         effects = self._decode_effects(state.effects)
 
         return {
