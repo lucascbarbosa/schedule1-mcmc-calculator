@@ -4,10 +4,7 @@ from simulate import ChainSimulation
 
 chain = ChainSimulation()
 base_product = 'Cocaine'
-recipe = [
-    'Cuke',
-    'Cuke',
-]
+recipe = ['Banana', 'Motor Oil', 'Cuke', 'Paracetamol', 'Gasoline', 'Cuke', 'Battery', 'Horse S*men', 'Mega Bean']
 results = chain.mix_recipe(base_product, recipe)
 print(f"Base Product: {base_product}")
 print(f"Recipe: {results['recipe']}")
