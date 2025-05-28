@@ -78,7 +78,7 @@ for (
     results_df.append(
         {
             "Base Product": base_product,
-            "Recipe Size": recipe_size,
+            "Initial Recipe Size": recipe_size,
             "Steps": n_steps,
             "T0": initial_temperature,
             "Alpha": alpha,
