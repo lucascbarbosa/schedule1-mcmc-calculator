@@ -4,12 +4,10 @@ import itertools
 import pandas as pd
 import torch
 from plots import (
-    plot_final_step_ingredients_barplot,
     plot_effects_heatmap,
     plot_ingredients_heatmap,
     plot_profit_lineplot,
     plot_recipes_sankey,
-    plot_profit_barplot,
 )
 from simulate import ChainSimulation
 
@@ -28,11 +26,11 @@ def to_cpu_recursive(obj):
 # Optimize recipes
 chain = ChainSimulation()
 
-simulation_data = {
+simulation_parameters = {
     'base_product': chain.products_df['product_name'].to_numpy(),
     'recipe_size': [7, 8, 9, 10],
-    'n_simulations': [10_000],
-    'n_steps': [600],
+    'n_simulations': [100],
+    'n_steps': [100],
     'initial_temperature': [100.0],
     'alpha': [0.99],
 }
@@ -46,12 +44,12 @@ for (
     initial_temperature,
     alpha,
 ) in itertools.product(
-    simulation_data["base_product"],
-    simulation_data["recipe_size"],
-    simulation_data["n_simulations"],
-    simulation_data["n_steps"],
-    simulation_data["initial_temperature"],
-    simulation_data["alpha"],
+    simulation_parameters["base_product"],
+    simulation_parameters["recipe_size"],
+    simulation_parameters["n_simulations"],
+    simulation_parameters["n_steps"],
+    simulation_parameters["initial_temperature"],
+    simulation_parameters["alpha"],
 ):
     print("Running:")
     print(f"# Base Product: {base_product}")
@@ -95,12 +93,6 @@ for (
     results_opt = to_cpu_recursive(results_opt)
 
     # Plot results immediately
-    plot_final_step_ingredients_barplot(
-        recipes=results_data["recipes"],
-        ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
-        base_product=base_product,
-        recipe_size=recipe_size,
-    )
     plot_ingredients_heatmap(
         recipes=results_data["recipes"],
         ingredients_name=chain.ingredients_df["ingredient_name"].tolist(),
@@ -131,6 +123,3 @@ for (
 
 results_df = pd.DataFrame(results_df)
 results_df.to_excel("../results/optimization_results.xlsx", index=False)
-
-# Plot results heatmap
-plot_profit_barplot(results_df)

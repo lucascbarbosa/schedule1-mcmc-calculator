@@ -7,60 +7,6 @@ import torch
 from typing import List
 
 
-def plot_final_step_ingredients_barplot(
-    recipes: torch.Tensor,
-    ingredients_name: List[str],
-    base_product: str,
-    recipe_size: int,
-):
-    """Plot ingredients relative frequency per recipe position in final step."""
-    # Get recipe at last step
-    recipe = recipes[-1].int()
-    recipe_size = recipe.shape[0]
-    n_ingredients = len(ingredients_name)
-
-    # Count ingredient occurrences for last step per recipe position
-    ingredients_count = torch.stack([
-        torch.bincount(
-            recipe[i, :].reshape(-1), minlength=n_ingredients + 1
-        )
-        for i in range(recipe_size)
-    ])[:, :-1]
-
-    ingredients_frequency = (
-        ingredients_count /
-        ingredients_count.sum()
-    ).cpu().numpy()  # shape: (recipe_size, n_ingredients)
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    recipe_positions = np.arange(1, recipe_size + 1)
-    bottom = np.zeros(recipe_size)
-    for i, name in enumerate(ingredients_name):
-        ax.bar(
-            recipe_positions,
-            ingredients_frequency[:, i],
-            bottom=bottom,
-            label=name
-        )
-        bottom += ingredients_frequency[:, i]
-
-    ax.set_xlabel("Recipe Position")
-    ax.set_ylabel("Relative Frequency")
-    # ax.set_title(
-    #     "Ingredient relative frequency per recipe position (at last step)\n"
-    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
-    #     fontsize=14,
-    #     loc='center'
-    # )
-    ax.set_xticks(recipe_positions)
-    ax.set_xticklabels([str(i) for i in recipe_positions])
-    ax.legend(title="Ingredient", bbox_to_anchor=(1.05, 1), loc='upper left')
-    fig.tight_layout()
-    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_barplot.svg")
-    plt.close()
-
-
 def plot_ingredients_heatmap(
     recipes: torch.Tensor,
     ingredients_name: List[str],
@@ -92,20 +38,15 @@ def plot_ingredients_heatmap(
         cmap='viridis',
         origin='lower'
     )
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Ingredient')
-    # ax.set_title(
-    #     "Relative frequency of ingredients per simulation step (heatmap)\n"
-    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
-    #     fontsize=14,
-    #     loc='center'
-    # )
+    ax.set_xlabel('Step', fontsize=16)
+    ax.set_ylabel('Ingredient', fontsize=16)
     ax.set_xlim(0.5, n_steps + 0.5)
     ax.set_yticks(np.arange(n_ingredients))
-    ax.set_yticklabels(ingredients_name)
+    ax.set_yticklabels(ingredients_name, fontsize=12)
     fig.colorbar(im, ax=ax, label='Relative frequency')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_heatmap.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_ingredients_heatmap.png")
     plt.close()
 
 
@@ -139,20 +80,15 @@ def plot_effects_heatmap(
         cmap='viridis',
         origin='lower'
     )
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Effect')
-    # ax.set_title(
-    #     "Relative frequency of effects per simulation step (heatmap)\n"
-    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
-    #     fontsize=14,
-    #     loc='center'
-    # )
+    ax.set_xlabel('Step', fontsize=16)
+    ax.set_ylabel('Effect', fontsize=16)
     ax.set_xlim(0.5, n_steps + 0.5)
     ax.set_yticks(np.arange(n_effects))
-    ax.set_yticklabels(effects_name)
+    ax.set_yticklabels(effects_name, fontsize=12)
     fig.colorbar(im, ax=ax, label='Relative frequency')
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_heatmap.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_effects_heatmap.png")
     plt.close()
 
 
@@ -174,17 +110,12 @@ def plot_profit_lineplot(
     ax.fill_between(
         steps, means - 3 * stds, means + 3 * stds, color='blue', alpha=0.2
     )
-    ax.set_xlabel('Step')
-    ax.set_ylabel('Profit')
-    # ax.set_title(
-    #     "Mean profit per step with confidence interval per simulation step\n"
-    #     f"Base Product: {base_product}, Recipe size: {recipe_size}",
-    #     fontsize=14,
-    #     loc='center'
-    # )
+    ax.set_xlabel('Step', fontsize=16)
+    ax.set_ylabel('Profit', fontsize=16)
     ax.set_xlim(0.5, n_steps + 0.5)
     fig.tight_layout()
     fig.savefig(f"../plots/{base_product}_{recipe_size}_profit_lineplot.svg")
+    fig.savefig(f"../plots/{base_product}_{recipe_size}_profit_lineplot.png")
     plt.close()
 
 
@@ -261,46 +192,8 @@ def plot_recipes_sankey(
     fig.update_layout(
         width=1200,
         height=600,
-        # title_text=(
-        #     "Sankey Diagram of Ingredients per recipe position (at last step)\n"
-        #     f"Base Product: {base_product}, Recipe size: {recipe_size}"
-        # ),
     )
     fig.write_image(f"../plots/{base_product}_{recipe_size}_recipes_sankey.svg")
+    fig.write_image(f"../plots/{base_product}_{recipe_size}_recipes_sankey.png")
     plt.close()
 
-
-def plot_profit_barplot(results_df: pd.DataFrame):
-    """Plot profit barplot for each base product and recipe size."""
-    plt.figure(figsize=(10, 6))
-    recipe_sizes = sorted(results_df['Recipe Size'].unique())
-    base_products = results_df['Base Product'].unique()
-    bar_width = 0.8 / len(recipe_sizes)
-    x = np.arange(len(base_products))
-
-    for idx, recipe_size in enumerate(recipe_sizes):
-        profits = []
-        for bp in base_products:
-            row = results_df[
-                (results_df['Base Product'] == bp) &
-                (results_df['Recipe Size'] == recipe_size)
-            ]
-            if not row.empty:
-                profits.append(row['Profit'].to_numpy()[0])
-            else:
-                profits.append(0)
-        plt.bar(
-            x + idx * bar_width,
-            profits,
-            width=bar_width,
-            label=f"Recipe Size {recipe_size}"
-        )
-
-    plt.xlabel('Base Product')
-    plt.ylabel('Profit')
-    plt.title('Profit by Base Product and Recipe Size')
-    plt.xticks(x + bar_width * (len(recipe_sizes) - 1) / 2, base_products)
-    plt.legend(title='Recipe Size')
-    plt.tight_layout()
-    plt.savefig('../plots/profit_barplot.svg')
-    plt.close()
