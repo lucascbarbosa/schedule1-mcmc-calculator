@@ -29,8 +29,8 @@ chain = ChainSimulation()
 simulation_parameters = {
     'base_product': chain.products_df['product_name'].to_numpy(),
     'recipe_size': [7, 8, 9, 10],
-    'n_simulations': [100],
-    'n_steps': [100],
+    'n_simulations': [10_000],
+    'n_steps': [600],
     'initial_temperature': [100.0],
     'alpha': [0.99],
 }
